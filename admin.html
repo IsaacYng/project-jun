@@ -1,1 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Login — Samriddhi & Brothers Auto</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { font-family: 'DM Sans', sans-serif; }
+    .font-display { font-family: 'Bebas Neue', sans-serif; }
+
+    body {
+      background-color: #0d1117;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Diagonal stripe background */
+    .bg-stripe {
+      background: linear-gradient(135deg, #005EA6 0%, #003d70 40%, #0d1117 41%);
+    }
+
+    /* Animated shimmer on the blue panel */
+    .shimmer::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.06) 50%, transparent 70%);
+      animation: shimmer 4s infinite;
+    }
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    .input-field {
+      background: rgba(255,255,255,0.05);
+      border: 1.5px solid rgba(255,255,255,0.12);
+      color: #fff;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .input-field:focus {
+      outline: none;
+      border-color: #005EA6;
+      background: rgba(0,94,166,0.1);
+    }
+    .input-field::placeholder { color: rgba(255,255,255,0.3); }
+
+    .btn-login {
+      background: #005EA6;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn-login:hover { background: #0070c7; }
+    .btn-login:active { transform: scale(0.98); }
+    .btn-login:disabled { background: #334155; cursor: not-allowed; }
+
+    .error-box {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.4);
+      color: #fca5a5;
+    }
+
+    /* Eye toggle */
+    .eye-btn { color: rgba(255,255,255,0.35); transition: color 0.2s; }
+    .eye-btn:hover { color: rgba(255,255,255,0.7); }
+
+    /* Bajaj logo accent bar */
+    .accent-bar {
+      height: 3px;
+      background: linear-gradient(90deg, #005EA6, #00b4ff, #005EA6);
+      background-size: 200% 100%;
+      animation: shimbar 3s linear infinite;
+    }
+    @keyframes shimbar {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    .fade-in { animation: fadeIn 0.4s ease both; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+  </style>
+</head>
+<body class="bg-stripe flex items-center justify-center min-h-screen p-4">
+
+  <!-- Background decorative circles -->
+  <div class="fixed top-0 left-0 w-96 h-96 rounded-full opacity-10" style="background:radial-gradient(circle, #005EA6, transparent); transform:translate(-30%, -30%);"></div>
+  <div class="fixed bottom-0 right-0 w-80 h-80 rounded-full opacity-10" style="background:radial-gradient(circle, #00b4ff, transparent); transform:translate(30%, 30%);"></div>
+
+  <!-- Login Card -->
+  <div class="relative w-full max-w-md fade-in">
+    <div class="accent-bar rounded-t-xl"></div>
+    <div class="bg-gray-900 bg-opacity-95 backdrop-blur rounded-b-xl shadow-2xl overflow-hidden border border-white border-opacity-5">
+
+      <!-- Header -->
+      <div class="px-8 pt-8 pb-6 text-center border-b border-white border-opacity-5">
+        <div class="inline-flex items-center justify-center w-14 h-14 rounded-full mb-4" style="background:rgba(0,94,166,0.15); border:1.5px solid rgba(0,94,166,0.4);">
+          <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="#005EA6" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+        </div>
+        <h1 class="font-display text-3xl tracking-widest text-white">ADMIN PORTAL</h1>
+        <p class="text-xs mt-1" style="color:rgba(255,255,255,0.4); letter-spacing:0.15em;">SAMRIDDHI &amp; BROTHERS AUTO · BAJAJ</p>
+      </div>
+
+      <!-- Form -->
+      <div class="px-8 py-7">
+
+        <!-- Error Box -->
+        <div id="errorBox" class="hidden error-box rounded-lg px-4 py-3 mb-5 text-sm flex items-center gap-2">
+          <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span id="errorMsg">Invalid credentials.</span>
+        </div>
+
+        <!-- Username -->
+        <div class="mb-4">
+          <label class="block text-xs font-medium mb-1.5" style="color:rgba(255,255,255,0.5); letter-spacing:0.1em;">USERNAME OR EMAIL</label>
+          <input id="username" type="text" placeholder="Enter username or email"
+            class="input-field w-full rounded-lg px-4 py-3 text-sm" autocomplete="username" />
+        </div>
+
+        <!-- Password -->
+        <div class="mb-6">
+          <label class="block text-xs font-medium mb-1.5" style="color:rgba(255,255,255,0.5); letter-spacing:0.1em;">PASSWORD</label>
+          <div class="relative">
+            <input id="password" type="password" placeholder="Enter password"
+              class="input-field w-full rounded-lg px-4 py-3 pr-11 text-sm" autocomplete="current-password" />
+            <button type="button" id="eyeToggle" class="eye-btn absolute right-3 top-1/2 -translate-y-1/2">
+              <svg id="eyeIcon" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Submit -->
+        <button id="loginBtn" class="btn-login w-full py-3 rounded-lg text-white font-semibold text-sm tracking-wide">
+          Sign In
+        </button>
+
+        <p class="text-center mt-5 text-xs" style="color:rgba(255,255,255,0.2);">
+          Unauthorized access is prohibited and monitored.
+        </p>
+      </div>
+
+      <!-- Footer -->
+      <div class="px-8 pb-6 text-center">
+        <span class="text-xs" style="color:rgba(255,255,255,0.15);">Go! YNG Dealership · Phidim, Panchthar</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ─── Auth Config ───────────────────────────────────────────────────────────
+    // Credentials are stored here for demo; in production, move to backend.
+    const USERS = [
+      {
+        id: 'u_master',
+        name: 'Isaac Yonghang',
+        username: 'master',
+        email: 'master@goyng.com.np',
+        password: 'Master@2025!',   // ← change before deployment
+        role: 'master'
+      }
+      // Additional users will be added dynamically by the Master Owner via admin_manage.html
+    ];
+
+    // ─── Session ───────────────────────────────────────────────────────────────
+    // If already logged in, skip login
+    const session = sessionStorage.getItem('adminSession');
+    if (session) {
+      window.location.replace('admin_manage.html');
+    }
+
+    // ─── Eye Toggle ───────────────────────────────────────────────────────────
+    document.getElementById('eyeToggle').addEventListener('click', () => {
+      const pwd = document.getElementById('password');
+      const icon = document.getElementById('eyeIcon');
+      const isText = pwd.type === 'text';
+      pwd.type = isText ? 'password' : 'text';
+      icon.innerHTML = isText
+        ? `<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>`
+        : `<path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>`;
+    });
+
+    // ─── Login Handler ─────────────────────────────────────────────────────────
+    function showError(msg) {
+      document.getElementById('errorBox').classList.remove('hidden');
+      document.getElementById('errorMsg').textContent = msg;
+    }
+    function hideError() {
+      document.getElementById('errorBox').classList.add('hidden');
+    }
+
+    document.getElementById('loginBtn').addEventListener('click', () => {
+      hideError();
+      const input = document.getElementById('username').value.trim();
+      const pass  = document.getElementById('password').value;
+      const btn   = document.getElementById('loginBtn');
+
+      if (!input || !pass) { showError('Please fill in all fields.'); return; }
+
+      btn.disabled = true;
+      btn.textContent = 'Signing in…';
+
+      // Load dynamic users from localStorage + hardcoded users
+      const dynamicUsers = JSON.parse(localStorage.getItem('adminUsers') || '[]');
+      const allUsers = [...USERS, ...dynamicUsers];
+
+      const user = allUsers.find(u =>
+        (u.username === input || u.email === input) && u.password === pass
+      );
+
+      setTimeout(() => {
+        if (!user) {
+          showError('Invalid username/email or password. Try again.');
+          btn.disabled = false;
+          btn.textContent = 'Sign In';
+          return;
+        }
+        if (user.status === 'inactive') {
+          showError('Your account has been deactivated. Contact the Master Owner.');
+          btn.disabled = false;
+          btn.textContent = 'Sign In';
+          return;
+        }
+
+        // Create session
+        sessionStorage.setItem('adminSession', JSON.stringify({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          loginTime: Date.now()
+        }));
+
+        window.location.replace('admin_manage.html');
+      }, 600);
+    });
+
+    // Allow Enter key
+    ['username','password'].forEach(id => {
+      document.getElementById(id).addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('loginBtn').click();
+      });
+    });
+  </script>
+</body>
+</html>
 
