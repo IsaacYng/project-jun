@@ -7,13 +7,16 @@
 
   <!--
   ╔══════════════════════════════════════════════════════════════════╗
-  ║  SECURITY NOTES FOR DEPLOYMENT                                   ║
+  ║  SECURITY NOTES                                                  ║
   ║  ─────────────────────────────────────────────────────────────  ║
-  ║  1. Firebase config must be loaded via environment variables     ║
-  ║     on your server — NEVER hardcode apiKey here.                 ║
-  ║  2. Firestore security rules must require auth for all writes.   ║
-  ║  3. Master password hash is stored in Firestore, not here.       ║
-  ║  4. This file should NEVER be committed with real credentials.   ║
+  ║  • Real auth: Firebase Authentication (email + password).        ║
+  ║  • Roles/status/profile live in Firestore collection "users",    ║
+  ║    keyed by the Firebase Auth uid.                                ║
+  ║  • First run: if no "master" role exists yet in Firestore, this  ║
+  ║    page shows a one-time "Create Master Account" form instead    ║
+  ║    of the login form.                                            ║
+  ║  • Set Firestore + Storage Security Rules before going live —    ║
+  ║    see the rules block at the bottom of this file.               ║
   ╚══════════════════════════════════════════════════════════════════╝
   -->
 
@@ -39,6 +42,8 @@
       --red-pale:  #FEF0EE;
       --amber:     #B7770D;
       --amber-pale:#FEF9ED;
+      --green:     #1A6B4A;
+      --green-pale:#EBF6F1;
     }
 
     body {
@@ -100,7 +105,6 @@
       font-weight: 300;
     }
 
-    /* Decorative motif */
     .panel-motif {
       position: absolute;
       right: -80px; top: 50%;
@@ -139,18 +143,12 @@
       justify-content: center;
       padding: 32px 24px;
       background: var(--surface);
+      overflow-y: auto;
     }
 
-    .login-box {
-      width: 100%;
-      max-width: 400px;
-    }
+    .login-box { width: 100%; max-width: 400px; }
 
-    /* Mobile-only logo */
-    .mobile-logo {
-      text-align: center;
-      margin-bottom: 36px;
-    }
+    .mobile-logo { text-align: center; margin-bottom: 36px; }
     .mobile-logo h1 {
       font-family: 'Playfair Display', serif;
       font-size: 1.6rem;
@@ -173,13 +171,8 @@
       color: var(--ink);
       margin-bottom: 6px;
     }
-    .login-sub {
-      font-size: 0.83rem;
-      color: var(--ink-soft);
-      margin-bottom: 32px;
-    }
+    .login-sub { font-size: 0.83rem; color: var(--ink-soft); margin-bottom: 32px; }
 
-    /* ── Form elements ── */
     .field-group { margin-bottom: 20px; }
     .field-label {
       display: block;
@@ -210,6 +203,7 @@
     .field-input::placeholder { color: var(--ink-faint); }
     .field-input.has-icon { padding-right: 46px; }
     .field-input.is-error { border-color: var(--red); }
+    .field-help { font-size: 0.74rem; color: var(--ink-faint); margin-top: 6px; }
 
     .eye-btn {
       position: absolute; right: 13px; top: 50%; transform: translateY(-50%);
@@ -219,135 +213,77 @@
     }
     .eye-btn:hover { color: var(--ink-mid); }
 
-    /* ── Messages ── */
     .msg-box {
-      display: none;
-      border-radius: 8px;
-      font-size: 0.82rem;
-      padding: 11px 14px;
-      margin-bottom: 20px;
-      align-items: flex-start;
-      gap: 9px;
-      line-height: 1.5;
+      display: none; border-radius: 8px; font-size: 0.82rem; padding: 11px 14px;
+      margin-bottom: 20px; align-items: flex-start; gap: 9px; line-height: 1.5;
     }
     .msg-box.show { display: flex; }
     .msg-box svg { flex-shrink: 0; margin-top: 1px; }
+    .msg-error { background: var(--red-pale); border: 1px solid rgba(192,57,43,0.2); color: var(--red); }
+    .msg-info  { background: var(--amber-pale); border: 1px solid rgba(183,119,13,0.2); color: var(--amber); }
+    .msg-success { background: var(--green-pale); border: 1px solid rgba(26,107,74,0.2); color: var(--green); }
 
-    .msg-error {
-      background: var(--red-pale);
-      border: 1px solid rgba(192,57,43,0.2);
-      color: var(--red);
-    }
-    .msg-info {
-      background: var(--amber-pale);
-      border: 1px solid rgba(183,119,13,0.2);
-      color: var(--amber);
-    }
-
-    /* ── Attempts hint ── */
-    #attemptsHint {
-      font-size: 0.78rem;
-      color: var(--red);
-      margin-bottom: 16px;
-      display: none;
-    }
+    #attemptsHint { font-size: 0.78rem; color: var(--red); margin-bottom: 16px; display: none; }
     #attemptsHint.show { display: block; }
 
-    /* ── Button ── */
     .btn-login {
-      width: 100%;
-      background: var(--ink);
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      font-family: 'Inter', sans-serif;
-      font-size: 0.875rem;
-      font-weight: 600;
-      letter-spacing: 0.03em;
-      padding: 13px;
-      cursor: pointer;
-      transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
-      margin-top: 4px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
+      width: 100%; background: var(--ink); color: #fff; border: none; border-radius: 8px;
+      font-family: 'Inter', sans-serif; font-size: 0.875rem; font-weight: 600; letter-spacing: 0.03em;
+      padding: 13px; cursor: pointer; transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+      margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 8px;
     }
-    .btn-login:hover {
-      background: #162E54;
-      box-shadow: 0 4px 20px rgba(11,29,58,0.2);
-    }
+    .btn-login:hover { background: #162E54; box-shadow: 0 4px 20px rgba(11,29,58,0.2); }
     .btn-login:active { transform: scale(0.985); }
-    .btn-login:disabled {
-      background: var(--ink-faint);
-      cursor: not-allowed;
-      box-shadow: none;
-    }
+    .btn-login:disabled { background: var(--ink-faint); cursor: not-allowed; box-shadow: none; }
 
-    /* gold accent on button bottom */
-    .btn-login-wrap {
-      position: relative;
-      margin-top: 4px;
-    }
+    .btn-login-wrap { position: relative; margin-top: 4px; }
     .btn-login-wrap::after {
-      content: '';
-      display: block;
-      height: 2px;
+      content: ''; display: block; height: 2px;
       background: linear-gradient(90deg, var(--gold), var(--gold-lt), var(--gold));
-      border-radius: 0 0 8px 8px;
-      opacity: 0.8;
+      border-radius: 0 0 8px 8px; opacity: 0.8;
     }
 
-    /* ── Divider ── */
-    .divider {
-      border: none;
-      border-top: 1px solid var(--card-bdr);
-      margin: 28px 0 20px;
-    }
+    .divider { border: none; border-top: 1px solid var(--card-bdr); margin: 28px 0 20px; }
+    .login-footer { font-size: 0.72rem; color: var(--ink-faint); text-align: center; line-height: 1.7; }
 
-    /* ── Footer ── */
-    .login-footer {
-      font-size: 0.72rem;
-      color: var(--ink-faint);
-      text-align: center;
-      line-height: 1.7;
-    }
-
-    /* ── Lockout overlay ── */
     .lockout-overlay {
-      display: none;
-      position: fixed; inset: 0;
-      background: rgba(244,242,238,0.96);
-      backdrop-filter: blur(8px);
-      align-items: center; justify-content: center;
-      flex-direction: column; gap: 10px;
-      text-align: center; padding: 32px;
-      z-index: 100;
+      display: none; position: fixed; inset: 0; background: rgba(244,242,238,0.96);
+      backdrop-filter: blur(8px); align-items: center; justify-content: center;
+      flex-direction: column; gap: 10px; text-align: center; padding: 32px; z-index: 100;
     }
     .lockout-overlay.show { display: flex; }
     .lockout-icon {
-      width: 60px; height: 60px;
-      background: var(--red-pale);
-      border: 1.5px solid rgba(192,57,43,0.2);
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      margin-bottom: 8px;
+      width: 60px; height: 60px; background: var(--red-pale); border: 1.5px solid rgba(192,57,43,0.2);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;
     }
 
-    /* ── Shake ── */
-    @keyframes shake {
-      0%,100% { transform: translateX(0); }
-      20%,60%  { transform: translateX(-5px); }
-      40%,80%  { transform: translateX(5px); }
-    }
+    @keyframes shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-5px); } 40%,80% { transform: translateX(5px); } }
     .shake { animation: shake 0.35s ease; }
 
-    /* ── Fade in ── */
     .fade-in { animation: fadeUp 0.4s ease both; }
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(12px); }
-      to   { opacity: 1; transform: none; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+    /* ── Password strength meter ── */
+    .pw-meter-track { height: 5px; border-radius: 4px; background: var(--card-bdr); overflow: hidden; margin-top: 9px; }
+    .pw-meter-fill { height: 100%; width: 0%; border-radius: 4px; transition: width 0.2s, background 0.2s; background: var(--red); }
+    .pw-meter-label { font-size: 0.74rem; font-weight: 600; margin-top: 6px; }
+    .pw-checklist { list-style: none; margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+    .pw-checklist li { font-size: 0.72rem; color: var(--ink-faint); display: flex; align-items: center; gap: 5px; }
+    .pw-checklist li.ok { color: var(--green); }
+    .pw-checklist li::before { content: '○'; font-size: 0.65rem; }
+    .pw-checklist li.ok::before { content: '●'; }
+
+    /* ── Mode switch (setup vs returning) ── */
+    .setup-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--gold-pale); color: #8A5E1A; border: 1px solid rgba(200,150,62,0.3);
+      border-radius: 99px; padding: 4px 12px; font-size: 0.68rem; font-weight: 700;
+      letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 16px;
     }
+
+    .spinner-center { display: flex; align-items: center; justify-content: center; min-height: 200px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 0.7s linear infinite; }
   </style>
 </head>
 <body>
@@ -393,274 +329,443 @@
     <p style="font-size:0.75rem; color:var(--ink-faint);">This page will unlock automatically.</p>
   </div>
 
-  <div class="login-box fade-in" id="loginBox">
-
-    <!-- Mobile-only logo -->
+  <div class="login-box fade-in" id="appRoot">
     <div class="mobile-logo">
       <h1>Samriddhi &amp; Brothers</h1>
       <p>Admin Portal · Bajaj Dealership</p>
     </div>
 
-    <h2 class="login-heading">Sign In</h2>
-    <p class="login-sub">Enter your credentials to access the dashboard.</p>
-
-    <!-- Info box -->
-    <div class="msg-box msg-info" id="infoBox">
-      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M12 8v4l2 2"/></svg>
-      <span id="infoMsg">Session expired. Please sign in again.</span>
+    <!-- Loading state while we check Firebase -->
+    <div id="checkingBox" class="spinner-center">
+      <svg class="spin" width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="var(--gold)" stroke-width="2.2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>
+      </svg>
     </div>
 
-    <!-- Error box -->
-    <div class="msg-box msg-error" id="errorBox">
-      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="12.5" r="0.5" fill="currentColor"/></svg>
-      <span id="errorMsg">Invalid credentials.</span>
+    <!-- ════ FIRST-RUN: CREATE MASTER ACCOUNT ════ -->
+    <div id="setupBox" style="display:none;">
+      <div class="setup-badge">
+        <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        First-Time Setup
+      </div>
+      <h2 class="login-heading">Create Master Account</h2>
+      <p class="login-sub">No Master account exists yet. Create the first one — it will have full control over staff, owners, and dealership data.</p>
+
+      <div class="msg-box msg-error" id="setupErrorBox"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="12.5" r="0.5" fill="currentColor"/></svg><span id="setupErrorMsg"></span></div>
+
+      <div class="field-group">
+        <label class="field-label" for="s-name">Full Name</label>
+        <input id="s-name" type="text" class="field-input" placeholder="e.g. Isaac Yonghang" />
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="s-email">Email</label>
+        <input id="s-email" type="email" class="field-input" placeholder="e.g. admin@goyng.com.np" autocomplete="username" />
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="s-username">Username</label>
+        <input id="s-username" type="text" class="field-input" placeholder="e.g. master" autocomplete="off" />
+        <p class="field-help">3–20 characters: letters, numbers, underscore only.</p>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="s-password">Password</label>
+        <div class="field-wrap">
+          <input id="s-password" type="password" class="field-input has-icon" placeholder="Create a strong password" autocomplete="new-password" />
+          <button type="button" class="eye-btn" data-eye-for="s-password" aria-label="Toggle password visibility">👁</button>
+        </div>
+        <div class="pw-meter-track"><div class="pw-meter-fill" id="s-pw-fill"></div></div>
+        <p class="pw-meter-label" id="s-pw-label"></p>
+        <ul class="pw-checklist" id="s-pw-checklist">
+          <li data-k="length">8+ characters</li>
+          <li data-k="upper">Uppercase letter</li>
+          <li data-k="lower">Lowercase letter</li>
+          <li data-k="number">Number</li>
+          <li data-k="special">Symbol</li>
+        </ul>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="s-password2">Confirm Password</label>
+        <input id="s-password2" type="password" class="field-input" placeholder="Re-enter password" autocomplete="new-password" />
+      </div>
+
+      <div class="btn-login-wrap">
+        <button id="setupBtn" class="btn-login">Create Master Account</button>
+      </div>
+      <hr class="divider" />
+      <p class="login-footer">This setup screen only appears once. After the Master account is created, everyone signs in below.</p>
     </div>
 
-    <!-- Username -->
-    <div class="field-group">
-      <label class="field-label" for="username">Username or Email</label>
-      <input id="username" type="text" class="field-input" placeholder="e.g. admin@goyng.com.np"
-        autocomplete="username" spellcheck="false" autocapitalize="none" />
-    </div>
+    <!-- ════ NORMAL LOGIN ════ -->
+    <div id="loginBox" style="display:none;">
+      <h2 class="login-heading">Sign In</h2>
+      <p class="login-sub">Enter your credentials to access the dashboard.</p>
 
-    <!-- Password -->
-    <div class="field-group">
-      <label class="field-label" for="password">Password</label>
-      <div class="field-wrap">
-        <input id="password" type="password" class="field-input has-icon" placeholder="Enter your password"
-          autocomplete="current-password" />
-        <button type="button" class="eye-btn" id="eyeBtn" aria-label="Toggle password visibility">
-          <svg id="eyeIcon" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-          </svg>
+      <div class="msg-box msg-info" id="infoBox">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M12 8v4l2 2"/></svg>
+        <span id="infoMsg">Session expired. Please sign in again.</span>
+      </div>
+
+      <div class="msg-box msg-error" id="errorBox">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="12.5" r="0.5" fill="currentColor"/></svg>
+        <span id="errorMsg">Invalid credentials.</span>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="username">Username or Email</label>
+        <input id="username" type="text" class="field-input" placeholder="e.g. admin@goyng.com.np"
+          autocomplete="username" spellcheck="false" autocapitalize="none" />
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="password">Password</label>
+        <div class="field-wrap">
+          <input id="password" type="password" class="field-input has-icon" placeholder="Enter your password" autocomplete="current-password" />
+          <button type="button" class="eye-btn" data-eye-for="password" aria-label="Toggle password visibility">👁</button>
+        </div>
+      </div>
+
+      <p id="attemptsHint">⚠ <span id="attemptsLeft">5</span> attempts remaining before lockout.</p>
+
+      <div class="btn-login-wrap">
+        <button id="loginBtn" class="btn-login">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25"/></svg>
+          Sign In to Dashboard
         </button>
       </div>
+
+      <hr class="divider" />
+      <p class="login-footer">
+        Go! YNG Dealership · Phidim-1, Panchthar, Nepal<br />
+        Sessions expire after 30 minutes of inactivity.
+      </p>
     </div>
-
-    <!-- Attempts hint -->
-    <p id="attemptsHint">
-      ⚠ <span id="attemptsLeft">5</span> attempts remaining before lockout.
-    </p>
-
-    <!-- Button -->
-    <div class="btn-login-wrap">
-      <button id="loginBtn" class="btn-login">
-        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25"/>
-        </svg>
-        Sign In to Dashboard
-      </button>
-    </div>
-
-    <hr class="divider" />
-    <p class="login-footer">
-      Go! YNG Dealership · Phidim-1, Panchthar, Nepal<br />
-      Sessions expire after 30 minutes of inactivity.
-    </p>
   </div>
 </div>
 
-<script>
+<script type="module">
+import { auth, db } from './firebase-init.js';
+import {
+  signInWithEmailAndPassword, onAuthStateChanged, createUserWithEmailAndPassword,
+  updateProfile, signOut
+} from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js';
+import {
+  doc, getDoc, setDoc, collection, query, where, limit, getDocs, serverTimestamp
+} from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js';
+import { isStrongPassword, passwordChecks, passwordScore, strengthMeta } from './auth-utils.js';
+
 const AUTH_CONFIG = {
-  SESSION_KEY:      '__sba_session',
   LOCKOUT_KEY:      '__sba_lockout',
   ATTEMPTS_KEY:     '__sba_attempts',
   MAX_ATTEMPTS:     5,
   LOCKOUT_DURATION: 5 * 60 * 1000,
-  SESSION_TIMEOUT:  30 * 60 * 1000,
 };
+const LAST_ACTIVE_KEY = '__sba_last_active';
 
-const MASTER = {
-  id: 'master_001',
-  name: 'Isaac Yonghang',
-  username: 'master',
-  email: 'admin@goyng.com.np',
-  role: 'master',
-  status: 'active',
-};
-const MASTER_PASSWORD = 'Bajaj@Master2025!';
+const $ = id => document.getElementById(id);
 
-/* Already logged in? */
-(function guardAlreadyLoggedIn() {
-  const s = sessionStorage.getItem(AUTH_CONFIG.SESSION_KEY);
-  if (!s) return;
-  try {
-    const sess = JSON.parse(s);
-    if (Date.now() - (sess.lastActive || 0) < AUTH_CONFIG.SESSION_TIMEOUT) {
-      window.location.replace('admin_manage.html');
-    } else {
-      sessionStorage.removeItem(AUTH_CONFIG.SESSION_KEY);
-    }
-  } catch { sessionStorage.removeItem(AUTH_CONFIG.SESSION_KEY); }
-})();
+/* ── Eye toggles (delegated) ── */
+document.querySelectorAll('.eye-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const input = $(btn.dataset.eyeFor);
+    input.type = input.type === 'password' ? 'text' : 'password';
+  });
+});
 
-/* Redirect reason */
-(function checkRedirectReason() {
-  const params = new URLSearchParams(window.location.search);
-  const reason = params.get('reason');
-  const msgEl = document.getElementById('infoMsg');
-  const box = document.getElementById('infoBox');
-  if (reason === 'expired') {
-    msgEl.textContent = 'Your session expired due to inactivity. Please sign in again.';
-    box.classList.add('show');
-  } else if (reason === 'logout') {
-    msgEl.textContent = 'You have been signed out successfully.';
-    box.classList.add('show');
-  } else if (reason === 'unauthorized') {
-    msgEl.textContent = 'Access denied. Please sign in to continue.';
-    box.classList.add('show');
-  }
-  if (reason) history.replaceState(null, '', 'admin.html');
-})();
-
-/* Lockout helpers */
-function getLockout() {
-  try { return JSON.parse(localStorage.getItem(AUTH_CONFIG.LOCKOUT_KEY) || 'null'); } catch { return null; }
-}
-function setLockout() {
-  localStorage.setItem(AUTH_CONFIG.LOCKOUT_KEY, JSON.stringify({ until: Date.now() + AUTH_CONFIG.LOCKOUT_DURATION }));
-}
-function clearLockout() {
-  localStorage.removeItem(AUTH_CONFIG.LOCKOUT_KEY);
-  localStorage.removeItem(AUTH_CONFIG.ATTEMPTS_KEY);
-}
-function isLockedOut() {
-  const l = getLockout();
-  if (!l) return false;
-  if (Date.now() < l.until) return true;
-  clearLockout(); return false;
-}
+/* ── Lockout helpers ── */
+function getLockout() { try { return JSON.parse(localStorage.getItem(AUTH_CONFIG.LOCKOUT_KEY) || 'null'); } catch { return null; } }
+function setLockout() { localStorage.setItem(AUTH_CONFIG.LOCKOUT_KEY, JSON.stringify({ until: Date.now() + AUTH_CONFIG.LOCKOUT_DURATION })); }
+function clearLockout() { localStorage.removeItem(AUTH_CONFIG.LOCKOUT_KEY); localStorage.removeItem(AUTH_CONFIG.ATTEMPTS_KEY); }
+function isLockedOut() { const l = getLockout(); if (!l) return false; if (Date.now() < l.until) return true; clearLockout(); return false; }
 function getAttempts() { return parseInt(localStorage.getItem(AUTH_CONFIG.ATTEMPTS_KEY) || '0', 10); }
 function incAttempts() { localStorage.setItem(AUTH_CONFIG.ATTEMPTS_KEY, getAttempts() + 1); }
 
-/* Eye toggle */
-document.getElementById('eyeBtn').addEventListener('click', () => {
-  const pw = document.getElementById('password');
-  const icon = document.getElementById('eyeIcon');
-  const show = pw.type === 'password';
-  pw.type = show ? 'text' : 'password';
-  icon.innerHTML = show
-    ? `<path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/>`
-    : `<path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>`;
-});
-
-/* UI helpers */
-function showError(msg) {
-  document.getElementById('errorBox').classList.add('show');
-  document.getElementById('errorMsg').textContent = msg;
-  document.getElementById('loginBox').classList.add('shake');
-  setTimeout(() => document.getElementById('loginBox').classList.remove('shake'), 400);
-}
-function hideError() { document.getElementById('errorBox').classList.remove('show'); }
-
-/* Lockout timer UI */
 let lockTimer;
 function showLockout() {
-  document.getElementById('lockoutOverlay').classList.add('show');
-  const l = getLockout();
-  if (!l) return;
+  $('lockoutOverlay').classList.add('show');
+  const l = getLockout(); if (!l) return;
   function tick() {
     const rem = Math.max(0, l.until - Date.now());
-    const m = Math.floor(rem / 60000);
-    const s = Math.floor((rem % 60000) / 1000);
-    document.getElementById('lockCountdown').textContent = `${m}:${String(s).padStart(2,'0')}`;
-    if (rem <= 0) {
-      clearLockout();
-      document.getElementById('lockoutOverlay').classList.remove('show');
-      clearInterval(lockTimer);
-    }
+    const m = Math.floor(rem / 60000), s = Math.floor((rem % 60000) / 1000);
+    $('lockCountdown').textContent = `${m}:${String(s).padStart(2,'0')}`;
+    if (rem <= 0) { clearLockout(); $('lockoutOverlay').classList.remove('show'); clearInterval(lockTimer); }
   }
   tick();
   lockTimer = setInterval(tick, 1000);
 }
 if (isLockedOut()) showLockout();
 
-/* Login */
-document.getElementById('loginBtn').addEventListener('click', doLogin);
-['username','password'].forEach(id => {
-  document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+/* ── Redirect-reason banner ── */
+(function checkRedirectReason() {
+  const params = new URLSearchParams(window.location.search);
+  const reason = params.get('reason');
+  const msgEl = $('infoMsg'), box = $('infoBox');
+  if (reason === 'expired')       { msgEl.textContent = 'Your session expired due to inactivity. Please sign in again.'; box.classList.add('show'); }
+  else if (reason === 'logout')   { msgEl.textContent = 'You have been signed out successfully.'; box.classList.add('show'); }
+  else if (reason === 'unauthorized') { msgEl.textContent = 'Access denied. Please sign in to continue.'; box.classList.add('show'); }
+  else if (reason === 'inactive') { msgEl.textContent = 'Your account has been deactivated. Contact the Master Owner.'; box.classList.add('show'); }
+  if (reason) history.replaceState(null, '', 'admin.html');
+})();
+
+/* ── UI helpers ── */
+function showError(msg) {
+  $('errorBox').classList.add('show');
+  $('errorMsg').textContent = msg;
+  $('loginBox').classList.add('shake');
+  setTimeout(() => $('loginBox').classList.remove('shake'), 400);
+}
+function hideError() { $('errorBox').classList.remove('show'); }
+function setBtnLoading(btn, loading, defaultHtml) {
+  btn.disabled = loading;
+  btn.innerHTML = loading
+    ? `<svg class="spin" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg> Working…`
+    : defaultHtml;
+}
+
+/* ── Password meter wiring (setup form) ── */
+function wirePasswordMeter(inputId, fillId, labelId, checklistId) {
+  const input = $(inputId);
+  input.addEventListener('input', () => {
+    const pw = input.value;
+    const score = passwordScore(pw);
+    const meta = strengthMeta(score);
+    $(fillId).style.width = pw ? meta.pct + '%' : '0%';
+    $(fillId).style.background = meta.color;
+    $(labelId).textContent = pw ? meta.label + ' password' : '';
+    $(labelId).style.color = meta.color;
+    const checks = passwordChecks(pw);
+    document.querySelectorAll(`#${checklistId} li`).forEach(li => {
+      li.classList.toggle('ok', !!checks[li.dataset.k]);
+    });
+  });
+}
+wirePasswordMeter('s-password', 's-pw-fill', 's-pw-label', 's-pw-checklist');
+
+/* ════════════════════════════════════════════════════════════════
+   MODE DETECTION: does a Master account already exist in Firestore?
+   ════════════════════════════════════════════════════════════════ */
+async function decideMode() {
+  // Already signed in with an active session? Skip straight to dashboard.
+  return new Promise(resolve => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      unsub();
+      if (user) {
+        try {
+          const snap = await getDoc(doc(db, 'users', user.uid));
+          if (snap.exists() && snap.data().status !== 'inactive') {
+            window.location.replace('admin_manage.html');
+            return;
+          }
+        } catch (e) { /* fall through to login */ }
+      }
+      resolve();
+    });
+  });
+}
+
+async function masterExists() {
+  const q = query(collection(db, 'users'), where('role', '==', 'master'), limit(1));
+  const snap = await getDocs(q);
+  return !snap.empty;
+}
+
+(async function init() {
+  await decideMode();
+  $('checkingBox').style.display = 'none';
+  const hasMaster = await masterExists().catch(() => true); // fail safe → show login, not setup
+  if (hasMaster) {
+    $('loginBox').style.display = '';
+  } else {
+    $('setupBox').style.display = '';
+  }
+})();
+
+/* ════════════════════════════════════════════════════════════════
+   FIRST-RUN MASTER SETUP
+   ════════════════════════════════════════════════════════════════ */
+$('setupBtn').addEventListener('click', async () => {
+  const errBox = $('setupErrorBox'), errMsg = $('setupErrorMsg');
+  errBox.classList.remove('show');
+  function showSetupErr(msg) { errMsg.textContent = msg; errBox.classList.add('show'); }
+
+  const name      = $('s-name').value.trim();
+  const email     = $('s-email').value.trim().toLowerCase();
+  const username  = $('s-username').value.trim().toLowerCase();
+  const password  = $('s-password').value;
+  const password2  = $('s-password2').value;
+
+  if (!name || !email || !username || !password || !password2) return showSetupErr('All fields are required.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showSetupErr('Enter a valid email address.');
+  if (!/^[a-z0-9_]{3,20}$/.test(username)) return showSetupErr('Username: 3–20 characters, letters/numbers/underscore only.');
+  if (!isStrongPassword(password)) return showSetupErr('Password is not strong enough — check the checklist above.');
+  if (password !== password2) return showSetupErr('Passwords do not match.');
+
+  const btn = $('setupBtn');
+  setBtnLoading(btn, true, 'Create Master Account');
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await updateProfile(cred.user, { displayName: name });
+    await setDoc(doc(db, 'users', cred.user.uid), {
+      uid: cred.user.uid, name, email, username, role: 'master', status: 'active',
+      photoURL: '', createdAt: serverTimestamp(),
+    });
+    localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()));
+    window.location.replace('admin_manage.html');
+  } catch (e) {
+    setBtnLoading(btn, false, 'Create Master Account');
+    showSetupErr(friendlyAuthError(e));
+  }
 });
 
-function doLogin() {
+/* ════════════════════════════════════════════════════════════════
+   NORMAL LOGIN
+   ════════════════════════════════════════════════════════════════ */
+$('loginBtn').addEventListener('click', doLogin);
+['username', 'password'].forEach(id => {
+  $(id).addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+});
+
+async function resolveEmail(input) {
+  if (input.includes('@')) return input;
+  const q = query(collection(db, 'users'), where('username', '==', input.toLowerCase()), limit(1));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  return snap.docs[0].data().email;
+}
+
+async function doLogin() {
   hideError();
   if (isLockedOut()) { showLockout(); return; }
 
-  const input = document.getElementById('username').value.trim();
-  const pass  = document.getElementById('password').value;
-  const btn   = document.getElementById('loginBtn');
+  const input = $('username').value.trim();
+  const pass  = $('password').value;
+  const btn   = $('loginBtn');
+  const defaultHtml = btn.innerHTML;
 
   if (!input || !pass) { showError('Please fill in both fields.'); return; }
 
-  btn.disabled = true;
-  btn.innerHTML = `<svg class="spin" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" style="animation:spin .7s linear infinite"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg> Signing in…`;
+  setBtnLoading(btn, true, defaultHtml);
+  try {
+    const email = await resolveEmail(input);
+    if (!email) throw { code: 'auth/user-not-found' };
 
-  setTimeout(() => {
-    const user = authenticateUser(input, pass);
+    const cred = await signInWithEmailAndPassword(auth, email, pass);
+    const profileSnap = await getDoc(doc(db, 'users', cred.user.uid));
+    const profile = profileSnap.exists() ? profileSnap.data() : null;
 
-    if (!user) {
-      incAttempts();
-      const attempts = getAttempts();
-      const remaining = AUTH_CONFIG.MAX_ATTEMPTS - attempts;
-
-      if (attempts >= AUTH_CONFIG.MAX_ATTEMPTS) {
-        setLockout();
-        showLockout();
-        btn.disabled = false;
-        btn.innerHTML = `<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25"/></svg> Sign In to Dashboard`;
-        return;
-      }
-
-      if (remaining <= 2) {
-        const hint = document.getElementById('attemptsHint');
-        hint.classList.add('show');
-        document.getElementById('attemptsLeft').textContent = remaining;
-      }
-
-      showError(`Incorrect username or password.${remaining <= 3 ? ` ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.` : ''}`);
-      btn.disabled = false;
-      btn.innerHTML = `<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25"/></svg> Sign In to Dashboard`;
-      document.getElementById('password').value = '';
-      document.getElementById('password').focus();
-      return;
+    if (!profile) {
+      await signOut(auth);
+      throw { code: 'profile/missing' };
     }
-
-    if (user.status === 'inactive') {
+    if (profile.status === 'inactive') {
+      await signOut(auth);
       showError('Your account has been deactivated. Contact the Master Owner.');
-      btn.disabled = false;
-      btn.innerHTML = `<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25"/></svg> Sign In to Dashboard`;
+      setBtnLoading(btn, false, defaultHtml);
       return;
     }
 
     clearLockout();
-    const token = generateToken();
-    sessionStorage.setItem(AUTH_CONFIG.SESSION_KEY, JSON.stringify({
-      id:         user.id,
-      name:       user.name,
-      email:      user.email,
-      role:       user.role,
-      token:      token,
-      loginTime:  Date.now(),
-      lastActive: Date.now(),
-    }));
+    localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()));
     window.location.replace('admin_manage.html');
-  }, 600);
+  } catch (e) {
+    incAttempts();
+    const attempts = getAttempts();
+    const remaining = AUTH_CONFIG.MAX_ATTEMPTS - attempts;
+
+    if (attempts >= AUTH_CONFIG.MAX_ATTEMPTS) {
+      setLockout();
+      showLockout();
+      setBtnLoading(btn, false, defaultHtml);
+      return;
+    }
+    if (remaining <= 2) {
+      $('attemptsHint').classList.add('show');
+      $('attemptsLeft').textContent = remaining;
+    }
+    showError(friendlyAuthError(e) + (remaining <= 3 ? ` ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.` : ''));
+    setBtnLoading(btn, false, defaultHtml);
+    $('password').value = '';
+    $('password').focus();
+  }
 }
 
-function authenticateUser(input, pass) {
-  if ((input === MASTER.username || input === MASTER.email) && pass === MASTER_PASSWORD) return MASTER;
-  const users = JSON.parse(localStorage.getItem('__sba_users') || '[]');
-  return users.find(u => (u.username === input || u.email === input) && u.password === pass) || null;
-}
-
-function generateToken() {
-  const arr = new Uint8Array(24);
-  crypto.getRandomValues(arr);
-  return Array.from(arr, b => b.toString(16).padStart(2,'0')).join('');
+function friendlyAuthError(e) {
+  const code = e && e.code;
+  switch (code) {
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+    case 'profile/missing':
+      return 'Incorrect username or password.';
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Please wait a moment and try again.';
+    case 'auth/email-already-in-use':
+      return 'An account with this email already exists.';
+    case 'auth/weak-password':
+      return 'Password is too weak.';
+    case 'auth/network-request-failed':
+      return 'Network error — check your connection.';
+    default:
+      return 'Something went wrong. Please try again.';
+  }
 }
 </script>
-<style>
-@keyframes spin { to { transform: rotate(360deg); } }
-</style>
+
+<!--
+══════════════════════════════════════════════════════════════════════
+RECOMMENDED FIRESTORE SECURITY RULES (set these in Firebase Console →
+Firestore Database → Rules) — paste and adjust collection names if you
+change them:
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() { return request.auth != null; }
+    function myDoc() { return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
+    function myRole() { return myDoc().data.role; }
+    function isActive() { return myDoc().data.status == 'active'; }
+    function isMaster() { return isSignedIn() && isActive() && myRole() == 'master'; }
+    function isOwnerOrMaster() { return isSignedIn() && isActive() && (myRole() == 'master' || myRole() == 'owner'); }
+
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isMaster();
+      allow update: if isMaster() || (isSignedIn() && request.auth.uid == uid
+                       && !('role' in request.resource.data.diff(resource.data).affectedKeys()));
+      allow delete: if isMaster();
+    }
+
+    match /bikes/{bikeId} {
+      allow read: if isSignedIn();
+      allow write: if isOwnerOrMaster();
+    }
+
+    match /inventory/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isOwnerOrMaster();
+    }
+  }
+}
+
+RECOMMENDED STORAGE RULES (Firebase Console → Storage → Rules):
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /avatars/{uid}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid
+                     && request.resource.size < 5 * 1024 * 1024;
+    }
+    match /bikes/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                     && request.resource.size < 8 * 1024 * 1024;
+    }
+  }
+}
+
+Also enable: Firebase Console → Authentication → Sign-in method → Email/Password → Enable.
+══════════════════════════════════════════════════════════════════════
+-->
 </body>
 </html>
