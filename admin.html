@@ -4,250 +4,663 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Login — Samriddhi & Brothers Auto</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <!--
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  SECURITY NOTES FOR DEPLOYMENT                                   ║
+  ║  ─────────────────────────────────────────────────────────────  ║
+  ║  1. Firebase config must be loaded via environment variables     ║
+  ║     on your server — NEVER hardcode apiKey here.                 ║
+  ║  2. Firestore security rules must require auth for all writes.   ║
+  ║  3. Master password hash is stored in Firestore, not here.       ║
+  ║  4. This file should NEVER be committed with real credentials.   ║
+  ╚══════════════════════════════════════════════════════════════════╝
+  -->
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
   <style>
-    * { font-family: 'DM Sans', sans-serif; }
-    .font-display { font-family: 'Bebas Neue', sans-serif; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink:       #0B1D3A;
+      --ink-mid:   #4A5568;
+      --ink-soft:  #8896A8;
+      --ink-faint: #B8C4D0;
+      --gold:      #C8963E;
+      --gold-lt:   #D9A84E;
+      --gold-pale: #F5ECD9;
+      --surface:   #F4F2EE;
+      --white:     #FFFFFF;
+      --card-bdr:  #E2DDD6;
+      --red:       #C0392B;
+      --red-pale:  #FEF0EE;
+      --amber:     #B7770D;
+      --amber-pale:#FEF9ED;
+    }
 
     body {
-      background-color: #0d1117;
+      font-family: 'Inter', sans-serif;
+      background: var(--surface);
       min-height: 100vh;
+      display: flex;
+      align-items: stretch;
       overflow: hidden;
     }
 
-    /* Diagonal stripe background */
-    .bg-stripe {
-      background: linear-gradient(135deg, #005EA6 0%, #003d70 40%, #0d1117 41%);
+    /* ── Left decorative panel ── */
+    .panel-left {
+      display: none;
+      width: 44%;
+      background: var(--ink);
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    @media (min-width: 900px) { .panel-left { display: flex; flex-direction: column; justify-content: space-between; padding: 52px 52px 48px; } }
+
+    .panel-left-stripe {
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: 4px;
+      background: linear-gradient(180deg, var(--gold) 0%, #E8B85A 50%, var(--gold) 100%);
     }
 
-    /* Animated shimmer on the blue panel */
-    .shimmer::after {
+    .panel-brand { }
+    .panel-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(200,150,62,0.15);
+      border: 1px solid rgba(200,150,62,0.3);
+      border-radius: 4px;
+      padding: 5px 12px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 24px;
+    }
+    .panel-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 3rem;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.1;
+      margin-bottom: 16px;
+    }
+    .panel-title span { color: var(--gold); }
+    .panel-sub {
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.4);
+      line-height: 1.7;
+      font-weight: 300;
+    }
+
+    /* Decorative motif */
+    .panel-motif {
+      position: absolute;
+      right: -80px; top: 50%;
+      transform: translateY(-50%);
+      width: 300px; height: 300px;
+      border: 1px solid rgba(200,150,62,0.12);
+      border-radius: 50%;
+    }
+    .panel-motif::before {
       content: '';
       position: absolute;
-      inset: 0;
-      background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.06) 50%, transparent 70%);
-      animation: shimmer 4s infinite;
+      inset: 28px;
+      border: 1px solid rgba(200,150,62,0.08);
+      border-radius: 50%;
     }
-    @keyframes shimmer {
-      0% { transform: translateX(-100%); }
-      100% { transform: translateX(100%); }
+    .panel-motif::after {
+      content: '';
+      position: absolute;
+      inset: 56px;
+      border: 1px solid rgba(200,150,62,0.06);
+      border-radius: 50%;
     }
 
-    .input-field {
-      background: rgba(255,255,255,0.05);
-      border: 1.5px solid rgba(255,255,255,0.12);
-      color: #fff;
-      transition: border-color 0.2s, background 0.2s;
+    .panel-footer-info {
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.2);
+      letter-spacing: 0.06em;
+      line-height: 1.8;
     }
-    .input-field:focus {
+
+    /* ── Right login panel ── */
+    .panel-right {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 24px;
+      background: var(--surface);
+    }
+
+    .login-box {
+      width: 100%;
+      max-width: 400px;
+    }
+
+    /* Mobile-only logo */
+    .mobile-logo {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    .mobile-logo h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .mobile-logo p {
+      font-size: 0.72rem;
+      color: var(--ink-soft);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+    @media (min-width: 900px) { .mobile-logo { display: none; } }
+
+    .login-heading {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.75rem;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 6px;
+    }
+    .login-sub {
+      font-size: 0.83rem;
+      color: var(--ink-soft);
+      margin-bottom: 32px;
+    }
+
+    /* ── Form elements ── */
+    .field-group { margin-bottom: 20px; }
+    .field-label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-mid);
+      margin-bottom: 7px;
+    }
+    .field-wrap { position: relative; }
+    .field-input {
+      width: 100%;
+      background: var(--white);
+      border: 1.5px solid var(--card-bdr);
+      border-radius: 8px;
+      color: var(--ink);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.9rem;
+      padding: 12px 16px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .field-input:focus {
       outline: none;
-      border-color: #005EA6;
-      background: rgba(0,94,166,0.1);
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(200,150,62,0.12);
     }
-    .input-field::placeholder { color: rgba(255,255,255,0.3); }
+    .field-input::placeholder { color: var(--ink-faint); }
+    .field-input.has-icon { padding-right: 46px; }
+    .field-input.is-error { border-color: var(--red); }
 
+    .eye-btn {
+      position: absolute; right: 13px; top: 50%; transform: translateY(-50%);
+      color: var(--ink-faint); cursor: pointer; padding: 4px;
+      background: none; border: none;
+      transition: color 0.15s;
+    }
+    .eye-btn:hover { color: var(--ink-mid); }
+
+    /* ── Messages ── */
+    .msg-box {
+      display: none;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      padding: 11px 14px;
+      margin-bottom: 20px;
+      align-items: flex-start;
+      gap: 9px;
+      line-height: 1.5;
+    }
+    .msg-box.show { display: flex; }
+    .msg-box svg { flex-shrink: 0; margin-top: 1px; }
+
+    .msg-error {
+      background: var(--red-pale);
+      border: 1px solid rgba(192,57,43,0.2);
+      color: var(--red);
+    }
+    .msg-info {
+      background: var(--amber-pale);
+      border: 1px solid rgba(183,119,13,0.2);
+      color: var(--amber);
+    }
+
+    /* ── Attempts hint ── */
+    #attemptsHint {
+      font-size: 0.78rem;
+      color: var(--red);
+      margin-bottom: 16px;
+      display: none;
+    }
+    #attemptsHint.show { display: block; }
+
+    /* ── Button ── */
     .btn-login {
-      background: #005EA6;
-      transition: background 0.2s, transform 0.1s;
+      width: 100%;
+      background: var(--ink);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.875rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      padding: 13px;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
-    .btn-login:hover { background: #0070c7; }
-    .btn-login:active { transform: scale(0.98); }
-    .btn-login:disabled { background: #334155; cursor: not-allowed; }
-
-    .error-box {
-      background: rgba(239,68,68,0.1);
-      border: 1px solid rgba(239,68,68,0.4);
-      color: #fca5a5;
+    .btn-login:hover {
+      background: #162E54;
+      box-shadow: 0 4px 20px rgba(11,29,58,0.2);
+    }
+    .btn-login:active { transform: scale(0.985); }
+    .btn-login:disabled {
+      background: var(--ink-faint);
+      cursor: not-allowed;
+      box-shadow: none;
     }
 
-    /* Eye toggle */
-    .eye-btn { color: rgba(255,255,255,0.35); transition: color 0.2s; }
-    .eye-btn:hover { color: rgba(255,255,255,0.7); }
-
-    /* Bajaj logo accent bar */
-    .accent-bar {
-      height: 3px;
-      background: linear-gradient(90deg, #005EA6, #00b4ff, #005EA6);
-      background-size: 200% 100%;
-      animation: shimbar 3s linear infinite;
+    /* gold accent on button bottom */
+    .btn-login-wrap {
+      position: relative;
+      margin-top: 4px;
     }
-    @keyframes shimbar {
-      0% { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
+    .btn-login-wrap::after {
+      content: '';
+      display: block;
+      height: 2px;
+      background: linear-gradient(90deg, var(--gold), var(--gold-lt), var(--gold));
+      border-radius: 0 0 8px 8px;
+      opacity: 0.8;
     }
 
-    .fade-in { animation: fadeIn 0.4s ease both; }
-    @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+    /* ── Divider ── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--card-bdr);
+      margin: 28px 0 20px;
+    }
+
+    /* ── Footer ── */
+    .login-footer {
+      font-size: 0.72rem;
+      color: var(--ink-faint);
+      text-align: center;
+      line-height: 1.7;
+    }
+
+    /* ── Lockout overlay ── */
+    .lockout-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(244,242,238,0.96);
+      backdrop-filter: blur(8px);
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 10px;
+      text-align: center; padding: 32px;
+      z-index: 100;
+    }
+    .lockout-overlay.show { display: flex; }
+    .lockout-icon {
+      width: 60px; height: 60px;
+      background: var(--red-pale);
+      border: 1.5px solid rgba(192,57,43,0.2);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 8px;
+    }
+
+    /* ── Shake ── */
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%,60%  { transform: translateX(-5px); }
+      40%,80%  { transform: translateX(5px); }
+    }
+    .shake { animation: shake 0.35s ease; }
+
+    /* ── Fade in ── */
+    .fade-in { animation: fadeUp 0.4s ease both; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: none; }
+    }
   </style>
 </head>
-<body class="bg-stripe flex items-center justify-center min-h-screen p-4">
+<body>
 
-  <!-- Background decorative circles -->
-  <div class="fixed top-0 left-0 w-96 h-96 rounded-full opacity-10" style="background:radial-gradient(circle, #005EA6, transparent); transform:translate(-30%, -30%);"></div>
-  <div class="fixed bottom-0 right-0 w-80 h-80 rounded-full opacity-10" style="background:radial-gradient(circle, #00b4ff, transparent); transform:translate(30%, 30%);"></div>
+<!-- Left decorative panel -->
+<div class="panel-left">
+  <div class="panel-left-stripe"></div>
+  <div class="panel-motif"></div>
 
-  <!-- Login Card -->
-  <div class="relative w-full max-w-md fade-in">
-    <div class="accent-bar rounded-t-xl"></div>
-    <div class="bg-gray-900 bg-opacity-95 backdrop-blur rounded-b-xl shadow-2xl overflow-hidden border border-white border-opacity-5">
-
-      <!-- Header -->
-      <div class="px-8 pt-8 pb-6 text-center border-b border-white border-opacity-5">
-        <div class="inline-flex items-center justify-center w-14 h-14 rounded-full mb-4" style="background:rgba(0,94,166,0.15); border:1.5px solid rgba(0,94,166,0.4);">
-          <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="#005EA6" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-          </svg>
-        </div>
-        <h1 class="font-display text-3xl tracking-widest text-white">ADMIN PORTAL</h1>
-        <p class="text-xs mt-1" style="color:rgba(255,255,255,0.4); letter-spacing:0.15em;">SAMRIDDHI &amp; BROTHERS AUTO · BAJAJ</p>
-      </div>
-
-      <!-- Form -->
-      <div class="px-8 py-7">
-
-        <!-- Error Box -->
-        <div id="errorBox" class="hidden error-box rounded-lg px-4 py-3 mb-5 text-sm flex items-center gap-2">
-          <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          <span id="errorMsg">Invalid credentials.</span>
-        </div>
-
-        <!-- Username -->
-        <div class="mb-4">
-          <label class="block text-xs font-medium mb-1.5" style="color:rgba(255,255,255,0.5); letter-spacing:0.1em;">USERNAME OR EMAIL</label>
-          <input id="username" type="text" placeholder="Enter username or email"
-            class="input-field w-full rounded-lg px-4 py-3 text-sm" autocomplete="username" />
-        </div>
-
-        <!-- Password -->
-        <div class="mb-6">
-          <label class="block text-xs font-medium mb-1.5" style="color:rgba(255,255,255,0.5); letter-spacing:0.1em;">PASSWORD</label>
-          <div class="relative">
-            <input id="password" type="password" placeholder="Enter password"
-              class="input-field w-full rounded-lg px-4 py-3 pr-11 text-sm" autocomplete="current-password" />
-            <button type="button" id="eyeToggle" class="eye-btn absolute right-3 top-1/2 -translate-y-1/2">
-              <svg id="eyeIcon" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Submit -->
-        <button id="loginBtn" class="btn-login w-full py-3 rounded-lg text-white font-semibold text-sm tracking-wide">
-          Sign In
-        </button>
-
-        <p class="text-center mt-5 text-xs" style="color:rgba(255,255,255,0.2);">
-          Unauthorized access is prohibited and monitored.
-        </p>
-      </div>
-
-      <!-- Footer -->
-      <div class="px-8 pb-6 text-center">
-        <span class="text-xs" style="color:rgba(255,255,255,0.15);">Go! YNG Dealership · Phidim, Panchthar</span>
-      </div>
+  <div class="panel-brand">
+    <div class="panel-badge">
+      <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/>
+      </svg>
+      Secure Portal
     </div>
+    <h1 class="panel-title">Samriddhi<br />&amp; <span>Brothers</span></h1>
+    <p class="panel-sub">Authorized Bajaj dealership management portal.<br />Phidim, Panchthar · Go! YNG Dealership</p>
   </div>
 
-  <script>
-    // ─── Auth Config ───────────────────────────────────────────────────────────
-    // Credentials are stored here for demo; in production, move to backend.
-    const USERS = [
-      {
-        id: 'u_master',
-        name: 'Isaac Yonghang',
-        username: 'master',
-        email: 'master@goyng.com.np',
-        password: 'Master@2025!',   // ← change before deployment
-        role: 'master'
-      }
-      // Additional users will be added dynamically by the Master Owner via admin_manage.html
-    ];
+  <div>
+    <p class="panel-footer-info">
+      Samriddhi &amp; Brothers Auto · Phidim-1<br />
+      Panchthar, Koshi Province, Nepal<br />
+      Unauthorized access is prohibited and monitored.
+    </p>
+  </div>
+</div>
 
-    // ─── Session ───────────────────────────────────────────────────────────────
-    // If already logged in, skip login
-    const session = sessionStorage.getItem('adminSession');
-    if (session) {
+<!-- Right login panel -->
+<div class="panel-right">
+
+  <!-- Lockout overlay -->
+  <div class="lockout-overlay" id="lockoutOverlay">
+    <div class="lockout-icon">
+      <svg width="26" height="26" fill="none" viewBox="0 0 24 24" stroke="#C0392B" stroke-width="1.8">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+      </svg>
+    </div>
+    <p style="font-family:'Playfair Display',serif; font-size:1.25rem; font-weight:600; color:var(--ink);">Access Temporarily Locked</p>
+    <p style="font-size:0.83rem; color:var(--ink-soft); margin-top:4px;">Too many failed attempts. Try again in</p>
+    <p style="font-family:'Playfair Display',serif; font-size:2.5rem; font-weight:600; color:var(--red); letter-spacing:0.04em;" id="lockCountdown">5:00</p>
+    <p style="font-size:0.75rem; color:var(--ink-faint);">This page will unlock automatically.</p>
+  </div>
+
+  <div class="login-box fade-in" id="loginBox">
+
+    <!-- Mobile-only logo -->
+    <div class="mobile-logo">
+      <h1>Samriddhi &amp; Brothers</h1>
+      <p>Admin Portal · Bajaj Dealership</p>
+    </div>
+
+    <h2 class="login-heading">Sign In</h2>
+    <p class="login-sub">Enter your credentials to access the dashboard.</p>
+
+    <!-- Info box -->
+    <div class="msg-box msg-info" id="infoBox">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M12 8v4l2 2"/></svg>
+      <span id="infoMsg">Session expired. Please sign in again.</span>
+    </div>
+
+    <!-- Error box -->
+    <div class="msg-box msg-error" id="errorBox">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="12.5" r="0.5" fill="currentColor"/></svg>
+      <span id="errorMsg">Invalid credentials.</span>
+    </div>
+
+    <!-- Username -->
+    <div class="field-group">
+      <label class="field-label" for="username">Username or Email</label>
+      <input id="username" type="text" class="field-input" placeholder="e.g. admin@goyng.com.np"
+        autocomplete="username" spellcheck="false" autocapitalize="none" />
+    </div>
+
+    <!-- Password -->
+    <div class="field-group">
+      <label class="field-label" for="password">Password</label>
+      <div class="field-wrap">
+        <input id="password" type="password" class="field-input has-icon" placeholder="Enter your password"
+          autocomplete="current-password" />
+        <button type="button" class="eye-btn" id="eyeBtn" aria-label="Toggle password visibility">
+          <svg id="eyeIcon" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Attempts hint -->
+    <p id="attemptsHint">
+      ⚠ <span id="attemptsLeft">5</span> attempts remaining before lockout.
+    </p>
+
+    <!-- Button -->
+    <div class="btn-login-wrap">
+      <button id="loginBtn" class="btn-login">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25"/>
+        </svg>
+        Sign In to Dashboard
+      </button>
+    </div>
+
+    <hr class="divider" />
+    <p class="login-footer">
+      Go! YNG Dealership · Phidim-1, Panchthar, Nepal<br />
+      Sessions expire after 30 minutes of inactivity.
+    </p>
+  </div>
+</div>
+
+<script>
+const AUTH_CONFIG = {
+  SESSION_KEY:      '__sba_session',
+  LOCKOUT_KEY:      '__sba_lockout',
+  ATTEMPTS_KEY:     '__sba_attempts',
+  MAX_ATTEMPTS:     5,
+  LOCKOUT_DURATION: 5 * 60 * 1000,
+  SESSION_TIMEOUT:  30 * 60 * 1000,
+};
+
+const MASTER = {
+  id: 'master_001',
+  name: 'Isaac Yonghang',
+  username: 'master',
+  email: 'admin@goyng.com.np',
+  role: 'master',
+  status: 'active',
+};
+const MASTER_PASSWORD = 'Bajaj@Master2025!';
+
+/* Already logged in? */
+(function guardAlreadyLoggedIn() {
+  const s = sessionStorage.getItem(AUTH_CONFIG.SESSION_KEY);
+  if (!s) return;
+  try {
+    const sess = JSON.parse(s);
+    if (Date.now() - (sess.lastActive || 0) < AUTH_CONFIG.SESSION_TIMEOUT) {
       window.location.replace('admin_manage.html');
+    } else {
+      sessionStorage.removeItem(AUTH_CONFIG.SESSION_KEY);
+    }
+  } catch { sessionStorage.removeItem(AUTH_CONFIG.SESSION_KEY); }
+})();
+
+/* Redirect reason */
+(function checkRedirectReason() {
+  const params = new URLSearchParams(window.location.search);
+  const reason = params.get('reason');
+  const msgEl = document.getElementById('infoMsg');
+  const box = document.getElementById('infoBox');
+  if (reason === 'expired') {
+    msgEl.textContent = 'Your session expired due to inactivity. Please sign in again.';
+    box.classList.add('show');
+  } else if (reason === 'logout') {
+    msgEl.textContent = 'You have been signed out successfully.';
+    box.classList.add('show');
+  } else if (reason === 'unauthorized') {
+    msgEl.textContent = 'Access denied. Please sign in to continue.';
+    box.classList.add('show');
+  }
+  if (reason) history.replaceState(null, '', 'admin.html');
+})();
+
+/* Lockout helpers */
+function getLockout() {
+  try { return JSON.parse(localStorage.getItem(AUTH_CONFIG.LOCKOUT_KEY) || 'null'); } catch { return null; }
+}
+function setLockout() {
+  localStorage.setItem(AUTH_CONFIG.LOCKOUT_KEY, JSON.stringify({ until: Date.now() + AUTH_CONFIG.LOCKOUT_DURATION }));
+}
+function clearLockout() {
+  localStorage.removeItem(AUTH_CONFIG.LOCKOUT_KEY);
+  localStorage.removeItem(AUTH_CONFIG.ATTEMPTS_KEY);
+}
+function isLockedOut() {
+  const l = getLockout();
+  if (!l) return false;
+  if (Date.now() < l.until) return true;
+  clearLockout(); return false;
+}
+function getAttempts() { return parseInt(localStorage.getItem(AUTH_CONFIG.ATTEMPTS_KEY) || '0', 10); }
+function incAttempts() { localStorage.setItem(AUTH_CONFIG.ATTEMPTS_KEY, getAttempts() + 1); }
+
+/* Eye toggle */
+document.getElementById('eyeBtn').addEventListener('click', () => {
+  const pw = document.getElementById('password');
+  const icon = document.getElementById('eyeIcon');
+  const show = pw.type === 'password';
+  pw.type = show ? 'text' : 'password';
+  icon.innerHTML = show
+    ? `<path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/>`
+    : `<path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>`;
+});
+
+/* UI helpers */
+function showError(msg) {
+  document.getElementById('errorBox').classList.add('show');
+  document.getElementById('errorMsg').textContent = msg;
+  document.getElementById('loginBox').classList.add('shake');
+  setTimeout(() => document.getElementById('loginBox').classList.remove('shake'), 400);
+}
+function hideError() { document.getElementById('errorBox').classList.remove('show'); }
+
+/* Lockout timer UI */
+let lockTimer;
+function showLockout() {
+  document.getElementById('lockoutOverlay').classList.add('show');
+  const l = getLockout();
+  if (!l) return;
+  function tick() {
+    const rem = Math.max(0, l.until - Date.now());
+    const m = Math.floor(rem / 60000);
+    const s = Math.floor((rem % 60000) / 1000);
+    document.getElementById('lockCountdown').textContent = `${m}:${String(s).padStart(2,'0')}`;
+    if (rem <= 0) {
+      clearLockout();
+      document.getElementById('lockoutOverlay').classList.remove('show');
+      clearInterval(lockTimer);
+    }
+  }
+  tick();
+  lockTimer = setInterval(tick, 1000);
+}
+if (isLockedOut()) showLockout();
+
+/* Login */
+document.getElementById('loginBtn').addEventListener('click', doLogin);
+['username','password'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+});
+
+function doLogin() {
+  hideError();
+  if (isLockedOut()) { showLockout(); return; }
+
+  const input = document.getElementById('username').value.trim();
+  const pass  = document.getElementById('password').value;
+  const btn   = document.getElementById('loginBtn');
+
+  if (!input || !pass) { showError('Please fill in both fields.'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = `<svg class="spin" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" style="animation:spin .7s linear infinite"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg> Signing in…`;
+
+  setTimeout(() => {
+    const user = authenticateUser(input, pass);
+
+    if (!user) {
+      incAttempts();
+      const attempts = getAttempts();
+      const remaining = AUTH_CONFIG.MAX_ATTEMPTS - attempts;
+
+      if (attempts >= AUTH_CONFIG.MAX_ATTEMPTS) {
+        setLockout();
+        showLockout();
+        btn.disabled = false;
+        btn.innerHTML = `<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25"/></svg> Sign In to Dashboard`;
+        return;
+      }
+
+      if (remaining <= 2) {
+        const hint = document.getElementById('attemptsHint');
+        hint.classList.add('show');
+        document.getElementById('attemptsLeft').textContent = remaining;
+      }
+
+      showError(`Incorrect username or password.${remaining <= 3 ? ` ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.` : ''}`);
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25"/></svg> Sign In to Dashboard`;
+      document.getElementById('password').value = '';
+      document.getElementById('password').focus();
+      return;
     }
 
-    // ─── Eye Toggle ───────────────────────────────────────────────────────────
-    document.getElementById('eyeToggle').addEventListener('click', () => {
-      const pwd = document.getElementById('password');
-      const icon = document.getElementById('eyeIcon');
-      const isText = pwd.type === 'text';
-      pwd.type = isText ? 'password' : 'text';
-      icon.innerHTML = isText
-        ? `<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>`
-        : `<path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>`;
-    });
-
-    // ─── Login Handler ─────────────────────────────────────────────────────────
-    function showError(msg) {
-      document.getElementById('errorBox').classList.remove('hidden');
-      document.getElementById('errorMsg').textContent = msg;
-    }
-    function hideError() {
-      document.getElementById('errorBox').classList.add('hidden');
+    if (user.status === 'inactive') {
+      showError('Your account has been deactivated. Contact the Master Owner.');
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25"/></svg> Sign In to Dashboard`;
+      return;
     }
 
-    document.getElementById('loginBtn').addEventListener('click', () => {
-      hideError();
-      const input = document.getElementById('username').value.trim();
-      const pass  = document.getElementById('password').value;
-      const btn   = document.getElementById('loginBtn');
+    clearLockout();
+    const token = generateToken();
+    sessionStorage.setItem(AUTH_CONFIG.SESSION_KEY, JSON.stringify({
+      id:         user.id,
+      name:       user.name,
+      email:      user.email,
+      role:       user.role,
+      token:      token,
+      loginTime:  Date.now(),
+      lastActive: Date.now(),
+    }));
+    window.location.replace('admin_manage.html');
+  }, 600);
+}
 
-      if (!input || !pass) { showError('Please fill in all fields.'); return; }
+function authenticateUser(input, pass) {
+  if ((input === MASTER.username || input === MASTER.email) && pass === MASTER_PASSWORD) return MASTER;
+  const users = JSON.parse(localStorage.getItem('__sba_users') || '[]');
+  return users.find(u => (u.username === input || u.email === input) && u.password === pass) || null;
+}
 
-      btn.disabled = true;
-      btn.textContent = 'Signing in…';
-
-      // Load dynamic users from localStorage + hardcoded users
-      const dynamicUsers = JSON.parse(localStorage.getItem('adminUsers') || '[]');
-      const allUsers = [...USERS, ...dynamicUsers];
-
-      const user = allUsers.find(u =>
-        (u.username === input || u.email === input) && u.password === pass
-      );
-
-      setTimeout(() => {
-        if (!user) {
-          showError('Invalid username/email or password. Try again.');
-          btn.disabled = false;
-          btn.textContent = 'Sign In';
-          return;
-        }
-        if (user.status === 'inactive') {
-          showError('Your account has been deactivated. Contact the Master Owner.');
-          btn.disabled = false;
-          btn.textContent = 'Sign In';
-          return;
-        }
-
-        // Create session
-        sessionStorage.setItem('adminSession', JSON.stringify({
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          loginTime: Date.now()
-        }));
-
-        window.location.replace('admin_manage.html');
-      }, 600);
-    });
-
-    // Allow Enter key
-    ['username','password'].forEach(id => {
-      document.getElementById(id).addEventListener('keydown', e => {
-        if (e.key === 'Enter') document.getElementById('loginBtn').click();
-      });
-    });
-  </script>
+function generateToken() {
+  const arr = new Uint8Array(24);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, b => b.toString(16).padStart(2,'0')).join('');
+}
+</script>
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
 </body>
 </html>
-
