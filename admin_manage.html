@@ -3,338 +3,391 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard — Samriddhi &amp; Brothers Auto</title>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <!--
+  ══ ROUTE GUARD (inline, fires before page renders) ══════════════════
+  Firebase onAuthStateChanged handles the real auth check below,
+  but we also check sessionStorage idle timeout here immediately
+  so the page never renders for unauthenticated users.
+  The Firebase check will also catch any token-level issues.
+  -->
+
+  <title>Dashboard — Samriddhi & Brothers Auto</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+      min-height: 100vh;
+    }
+    .font-display { font-family: 'Bebas Neue', sans-serif; }
+
     :root {
-      --ink:        #0B1D3A;
-      --ink-mid:    #4A5568;
-      --ink-soft:   #8896A8;
-      --ink-faint:  #B8C4D0;
-      --gold:       #C8963E;
-      --gold-lt:    #D9A84E;
-      --gold-pale:  #FBF4E8;
-      --surface:    #F4F2EE;
-      --white:      #FFFFFF;
-      --card-bdr:   #E2DDD6;
-      --card-bdr2:  #ECE8E2;
-      --blue:       #1B4F8A;
-      --blue-pale:  #EBF0F8;
-      --green:      #1A6B4A;
-      --green-pale: #EBF6F1;
-      --red:        #C0392B;
-      --red-pale:   #FEF0EE;
-      --amber:      #B7770D;
-      --amber-pale: #FEF9ED;
-      --sidebar-w:  248px;
+      --blue:       #005EA6;
+      --blue-lt:    #0070c7;
+      --blue-pale:  #e8f1fa;
+      --surface:    #f1f5f9;
+      --card:       #ffffff;
+      --border:     #e2e8f0;
+      --text:       #1e293b;
+      --text-muted: #64748b;
+      --text-light: #94a3b8;
     }
-
-    body { font-family: 'Inter', sans-serif; background: var(--surface); color: var(--ink-mid); min-height: 100vh; }
-
-    /* ══ FULL-PAGE LOADER (shown until Firebase auth resolves) ══ */
-    #authLoader {
-      position: fixed; inset: 0; z-index: 1000; background: var(--surface);
-      display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 14px;
-    }
-    #authLoader svg { animation: spin 0.8s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    #authLoader p { font-size: 0.82rem; color: var(--ink-soft); }
-    body.app-ready #authLoader { display: none; }
-    #appShell { display: none; }
-    body.app-ready #appShell { display: block; }
 
     /* ══ SIDEBAR ══════════════════════════════════════════════════ */
-    .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: var(--sidebar-w); background: var(--ink);
-      display: flex; flex-direction: column; z-index: 60; transition: transform 0.26s cubic-bezier(.4,0,.2,1); }
-    .sidebar::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-      background: linear-gradient(180deg, var(--gold) 0%, #E8B85A 50%, var(--gold) 100%); z-index: 1; }
+    .sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0; width: 240px;
+      background: #fff;
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      z-index: 60;
+      transition: transform 0.28s cubic-bezier(.4,0,.2,1);
+      box-shadow: 2px 0 12px rgba(0,0,0,0.04);
+    }
+    .sidebar-logo {
+      padding: 20px 18px 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .stripe {
+      height: 3px; border-radius: 2px; margin-bottom: 12px;
+      background: linear-gradient(90deg, #003d70, #005EA6, #38bdf8, #005EA6, #003d70);
+      background-size: 300% 100%;
+      animation: stripe-move 4s linear infinite;
+    }
+    @keyframes stripe-move { to { background-position: 300% 0%; } }
 
-    .sidebar-logo { padding: 22px 20px 18px 24px; border-bottom: 1px solid rgba(255,255,255,0.06); flex-shrink: 0; }
-    .logo-eyebrow { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
-    .logo-name { font-family: 'Playfair Display', serif; font-size: 1.2rem; font-weight: 600; color: #fff; line-height: 1.2; }
-    .logo-sub { font-size: 0.67rem; color: rgba(255,255,255,0.28); letter-spacing: 0.08em; margin-top: 2px; }
-
-    .nav-group-label { padding: 14px 20px 4px 24px; font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(255,255,255,0.22); font-weight: 700; }
-
-    .nav-item { display: flex; align-items: center; gap: 10px; margin: 1px 12px 1px 12px; padding: 9px 12px;
-      border-radius: 7px; cursor: pointer; font-size: 0.845rem; font-weight: 500; color: rgba(255,255,255,0.38);
-      transition: background 0.14s, color 0.14s; user-select: none; position: relative; }
-    .nav-item:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.75); }
-    .nav-item.active { background: rgba(200,150,62,0.14); color: #EDBA6A; }
-    .nav-item.active::before { content: ''; position: absolute; left: -12px; top: 50%; transform: translateY(-50%);
-      width: 3px; height: 60%; border-radius: 0 3px 3px 0; background: var(--gold); }
+    .nav-group-label {
+      padding: 14px 18px 4px;
+      font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--text-light); font-weight: 600;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      margin: 1px 10px; padding: 9px 12px;
+      border-radius: 8px; cursor: pointer;
+      font-size: 0.855rem; font-weight: 500;
+      color: var(--text-muted);
+      transition: background 0.13s, color 0.13s;
+      user-select: none;
+    }
+    .nav-item:hover { background: var(--blue-pale); color: var(--blue); }
+    .nav-item.active { background: var(--blue-pale); color: var(--blue); font-weight: 600; }
     .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
 
-    .sidebar-user { padding: 14px 16px 14px 18px; border-top: 1px solid rgba(255,255,255,0.06); flex-shrink: 0; }
-    .avatar { width: 32px; height: 32px; border-radius: 8px; background: var(--gold); display: inline-flex;
-      align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700; color: var(--ink); flex-shrink: 0;
-      overflow: hidden; }
-    .avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .sidebar-footer {
+      padding: 14px 16px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .avatar {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: var(--blue); color: #fff;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 0.78rem; font-weight: 700; flex-shrink: 0;
+    }
 
     /* ══ TOPBAR ════════════════════════════════════════════════════ */
-    .topbar { position: sticky; top: 0; z-index: 40; background: rgba(244,242,238,0.92); backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--card-bdr); padding: 0 28px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
-    .topbar-title { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 600; color: var(--ink); }
+    .topbar {
+      position: sticky; top: 0; z-index: 40;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
 
-    .main-wrap { margin-left: var(--sidebar-w); min-height: 100vh; display: flex; flex-direction: column; }
-    .content { padding: 28px 28px 56px; flex: 1; }
+    /* ══ MAIN ══════════════════════════════════════════════════════ */
+    .main-wrap { margin-left: 240px; min-height: 100vh; }
+    .content { padding: 28px; }
 
+    /* ══ CARDS ═════════════════════════════════════════════════════ */
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .card-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .card-body { padding: 20px; }
+
+    /* ══ STAT CARDS ════════════════════════════════════════════════ */
+    .stat-card {
+      background: #fff; border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px 20px;
+      border-top: 3px solid var(--blue);
+    }
+    .stat-num { font-family: 'Bebas Neue',sans-serif; font-size: 2.4rem; line-height:1; color: var(--blue); }
+    .stat-label { font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-light); margin-bottom: 6px; }
+
+    /* ══ FORMS ═════════════════════════════════════════════════════ */
+    .field-label {
+      display: block; font-size: 0.72rem; font-weight: 600;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--text-muted); margin-bottom: 5px;
+    }
+    .field-input {
+      width: 100%;
+      background: #f8fafc; border: 1.5px solid var(--border);
+      border-radius: 8px; color: var(--text);
+      font-family: 'DM Sans',sans-serif; font-size: 0.875rem; padding: 9px 13px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .field-input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,94,166,0.1); background: #fff; }
+    .field-input::placeholder { color: var(--text-light); }
+    .field-input.error { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.1); }
+
+    /* ══ BUTTONS ═══════════════════════════════════════════════════ */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      border-radius: 8px; font-family: 'DM Sans',sans-serif;
+      font-weight: 600; font-size: 0.845rem; cursor: pointer;
+      padding: 9px 18px; border: none; transition: all 0.13s; text-align: center;
+    }
+    .btn-sm { padding: 6px 12px; font-size: 0.78rem; border-radius: 6px; }
+    .btn-primary { background: var(--blue); color: #fff; }
+    .btn-primary:hover { background: var(--blue-lt); box-shadow: 0 3px 12px rgba(0,94,166,0.25); }
+    .btn-danger { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+    .btn-danger:hover { background: #fee2e2; }
+    .btn-warn   { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+    .btn-warn:hover { background: #fef3c7; }
+    .btn-ok     { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .btn-ok:hover { background: #dcfce7; }
+    .btn-ghost  { background: #f8fafc; color: var(--text-muted); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: #f1f5f9; color: var(--text); }
+    .btn-logout { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; width:100%; justify-content:center; }
+    .btn-logout:hover { background: #fee2e2; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ══ BADGES ════════════════════════════════════════════════════ */
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 3px 9px; border-radius: 99px;
+      font-size: 0.7rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+    }
+    .badge-master   { background: #fef9c3; color: #854d0e; border: 1px solid #fde047; }
+    .badge-owner    { background: var(--blue-pale); color: var(--blue); border: 1px solid #bfdbfe; }
+    .badge-staff    { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+    .badge-active   { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .badge-inactive { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+
+    /* ══ TABLE ═════════════════════════════════════════════════════ */
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th {
+      font-size: 0.68rem; letter-spacing: 0.09em; text-transform: uppercase;
+      color: var(--text-light); font-weight: 600;
+      padding: 10px 16px; text-align: left;
+      border-bottom: 1px solid var(--border); background: #f8fafc;
+    }
+    .data-table td {
+      padding: 12px 16px; font-size: 0.845rem;
+      border-bottom: 1px solid #f1f5f9;
+      color: var(--text); vertical-align: middle;
+    }
+    .data-table tbody tr:last-child td { border-bottom: none; }
+    .data-table tbody tr:hover td { background: #f8fafc; }
+
+    /* ══ ALERT BOXES ═══════════════════════════════════════════════ */
+    .alert-box {
+      display: none; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px;
+      font-size: 0.82rem; align-items: center; gap: 8px;
+    }
+    .alert-box.show { display: flex; }
+    .alert-error   { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
+    .alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+
+    /* ══ SECTIONS ══════════════════════════════════════════════════ */
     .page-sec { display: none; }
     .page-sec.active { display: block; }
 
-    /* ══ STAT CARDS ═════════════════════════════════════════════════ */
-    .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-    @media (max-width: 900px) { .stat-grid { grid-template-columns: repeat(2,1fr); } }
-    .stat-card { background: var(--white); border: 1px solid var(--card-bdr); border-radius: 12px; padding: 20px 22px 18px; position: relative; overflow: hidden; }
-    .stat-card::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
-      background: linear-gradient(90deg, var(--gold), var(--gold-lt)); opacity: 0; transition: opacity 0.2s; }
-    .stat-card:hover::after { opacity: 1; }
-    .stat-label { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 8px; }
-    .stat-num { font-family: 'Playfair Display', serif; font-size: 2.2rem; font-weight: 700; color: var(--ink); line-height: 1; }
-    .stat-num.dim { color: var(--ink-faint); font-size: 1.5rem; }
-    .stat-sub { font-size: 0.72rem; color: var(--ink-faint); margin-top: 4px; }
-    .stat-icon { position: absolute; top: 18px; right: 18px; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    /* ══ PLACEHOLDER ═══════════════════════════════════════════════ */
+    .placeholder-zone {
+      border: 2px dashed #cbd5e1; border-radius: 12px;
+      padding: 48px 32px; text-align: center;
+    }
+    .placeholder-zone svg { width: 44px; height: 44px; margin: 0 auto 14px; display: block; color: #cbd5e1; }
 
-    .card { background: var(--white); border: 1px solid var(--card-bdr); border-radius: 12px; }
-    .card-header { padding: 18px 24px; border-bottom: 1px solid var(--card-bdr2); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-    .card-title { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 600; color: var(--ink); }
-
-    .field-label { display: block; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
-    .field-input { width: 100%; background: var(--surface); border: 1.5px solid var(--card-bdr); border-radius: 8px; color: var(--ink);
-      font-family: 'Inter', sans-serif; font-size: 0.875rem; padding: 10px 13px; transition: border-color 0.15s, background 0.15s, box-shadow 0.15s; }
-    .field-input:focus { outline: none; border-color: var(--gold); background: var(--white); box-shadow: 0 0 0 3px rgba(200,150,62,0.1); }
-    .field-input::placeholder { color: var(--ink-faint); }
-    .field-help { font-size: 0.74rem; color: var(--ink-faint); margin-top: 6px; }
-
-    .btn { display: inline-flex; align-items: center; gap: 6px; border-radius: 7px; font-family: 'Inter', sans-serif;
-      font-weight: 600; font-size: 0.835rem; cursor: pointer; padding: 9px 18px; border: none; transition: all 0.14s; letter-spacing: 0.01em; }
-    .btn-primary { background: var(--ink); color: #fff; box-shadow: 0 1px 3px rgba(11,29,58,0.15); }
-    .btn-primary:hover { background: #162E54; box-shadow: 0 4px 12px rgba(11,29,58,0.2); }
-    .btn-gold { background: var(--gold); color: var(--ink); }
-    .btn-gold:hover { background: var(--gold-lt); }
-    .btn-sm { padding: 6px 13px; font-size: 0.775rem; border-radius: 6px; }
-    .btn-xs { padding: 4px 9px; font-size: 0.7rem; border-radius: 5px; }
-    .btn-danger { background: var(--red-pale); color: var(--red); border: 1px solid rgba(192,57,43,0.18); }
-    .btn-danger:hover { background: #FBDBD8; }
-    .btn-warn { background: var(--amber-pale); color: var(--amber); border: 1px solid rgba(183,119,13,0.18); }
-    .btn-warn:hover { background: #FDF2D0; }
-    .btn-ok { background: var(--green-pale); color: var(--green); border: 1px solid rgba(26,107,74,0.18); }
-    .btn-ok:hover { background: #D8EFE7; }
-    .btn-ghost { background: transparent; color: var(--ink-mid); border: 1.5px solid var(--card-bdr); }
-    .btn-ghost:hover { background: var(--surface); border-color: var(--ink-faint); }
-    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
-    .btn-logout { background: transparent; color: rgba(255,255,255,0.42); border: 1px solid rgba(255,255,255,0.1); width: 100%; justify-content: center; font-size: 0.8rem; }
-    .btn-logout:hover { background: rgba(192,57,43,0.15); color: #FF8A80; border-color: rgba(192,57,43,0.3); }
-
-    .data-table { width: 100%; border-collapse: collapse; }
-    .data-table th { font-size: 0.63rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); font-weight: 700;
-      padding: 11px 16px; text-align: left; border-bottom: 1.5px solid var(--card-bdr2); background: #FAFAF8; }
-    .data-table td { padding: 14px 16px; font-size: 0.845rem; border-bottom: 1px solid var(--card-bdr2); color: var(--ink-mid); vertical-align: middle; }
-    .data-table tbody tr:last-child td { border-bottom: none; }
-    .data-table tbody tr:hover td { background: #FAFAF8; }
-    .data-table td.group-start { border-top: 2px solid var(--card-bdr2); }
-
-    .badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 99px; font-size: 0.67rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; }
-    .badge-master  { background: var(--gold-pale); color: #8A5E1A; border: 1px solid rgba(200,150,62,0.25); }
-    .badge-owner   { background: var(--blue-pale); color: var(--blue); border: 1px solid rgba(27,79,138,0.2); }
-    .badge-staff   { background: var(--surface); color: var(--ink-soft); border: 1px solid var(--card-bdr); }
-    .badge-active  { background: var(--green-pale); color: var(--green); border: 1px solid rgba(26,107,74,0.2); }
-    .badge-inactive{ background: var(--red-pale); color: var(--red); border: 1px solid rgba(192,57,43,0.2); }
-
-    .placeholder-zone { border: 1.5px dashed var(--card-bdr); border-radius: 12px; padding: 52px 36px; text-align: center; background: #FAFAF8; }
-    .placeholder-zone svg { width: 40px; height: 40px; margin: 0 auto 16px; display: block; color: var(--ink-faint); }
-    .placeholder-zone h4 { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
-    .placeholder-zone p { font-size: 0.83rem; color: var(--ink-soft); margin-bottom: 20px; }
-
-    .modal-bg { display: none; position: fixed; inset: 0; background: rgba(11,29,58,0.35); backdrop-filter: blur(4px); z-index: 200; align-items: center; justify-content: center; padding: 20px; overflow-y: auto; }
+    /* ══ MODAL ═════════════════════════════════════════════════════ */
+    .modal-bg {
+      display: none; position: fixed; inset: 0;
+      background: rgba(15,23,42,0.45); backdrop-filter: blur(4px);
+      z-index: 200; align-items: center; justify-content: center;
+    }
     .modal-bg.open { display: flex; }
-    .modal-box { background: var(--white); border: 1px solid var(--card-bdr); border-radius: 14px; padding: 28px; width: 100%; max-width: 420px;
-      box-shadow: 0 32px 80px rgba(11,29,58,0.25); animation: modal-in 0.2s ease both; margin: auto; }
-    .modal-box.wide { max-width: 640px; }
-    @keyframes modal-in { from { opacity:0; transform:scale(0.96) translateY(8px); } }
-    .modal-title { font-family: 'Playfair Display', serif; font-size: 1.1rem; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
-    .modal-msg { font-size: 0.85rem; color: var(--ink-mid); margin-bottom: 24px; }
+    .modal-box {
+      background: #fff; border: 1px solid var(--border);
+      border-radius: 14px; padding: 28px; width: 90%; max-width: 440px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.12);
+      animation: modal-in 0.2s ease both;
+    }
+    @keyframes modal-in { from { opacity:0; transform:scale(0.97) translateY(8px); } }
 
-    .session-warn { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(11,29,58,0.4); backdrop-filter: blur(8px); align-items: center; justify-content: center; }
+    /* ══ SESSION EXPIRY OVERLAY ════════════════════════════════════ */
+    .session-warn {
+      display: none; position: fixed; inset: 0; z-index: 500;
+      background: rgba(15,23,42,0.5); backdrop-filter: blur(6px);
+      align-items: center; justify-content: center;
+    }
     .session-warn.open { display: flex; }
-    .session-warn-box { background: var(--white); border: 1px solid var(--card-bdr); border-top: 3px solid var(--gold); border-radius: 14px; padding: 36px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 32px 80px rgba(11,29,58,0.3); }
+    .session-warn-box {
+      background: #fff; border: 1px solid #fde68a;
+      border-radius: 14px; padding: 32px; width: 90%; max-width: 400px;
+      text-align: center; box-shadow: 0 24px 60px rgba(0,0,0,0.12);
+    }
 
-    #toast { position: fixed; bottom: 24px; right: 24px; z-index: 900; background: var(--ink); border: 1px solid rgba(255,255,255,0.08);
-      color: rgba(255,255,255,0.9); padding: 12px 18px; border-radius: 9px; font-size: 0.845rem; box-shadow: 0 8px 32px rgba(11,29,58,0.3);
-      transform: translateY(16px); opacity: 0; pointer-events: none; transition: transform 0.22s, opacity 0.22s; max-width: 320px; border-left: 3px solid var(--gold); }
+    /* ══ TOAST ═════════════════════════════════════════════════════ */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 900;
+      background: #1e293b; color: #f8fafc;
+      padding: 12px 18px; border-radius: 10px;
+      font-size: 0.855rem; max-width: 300px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.15);
+      transform: translateY(16px); opacity: 0; pointer-events: none;
+      transition: transform 0.22s, opacity 0.22s;
+    }
     #toast.show { transform: none; opacity: 1; }
-    #toast.error { border-left-color: var(--red); }
 
-    @media (max-width: 768px) { .sidebar { transform: translateX(-100%); } .sidebar.open { transform: none; } .main-wrap { margin-left: 0; } }
-    .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(11,29,58,0.4); z-index: 55; }
-    .sidebar-overlay.open { display: block; }
+    /* ══ SPINNER ═══════════════════════════════════════════════════ */
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(0,94,166,0.2);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-state { opacity: 0.5; pointer-events: none; }
+
+    /* ══ MOBILE OVERLAY ════════════════════════════════════════════ */
+    .sb-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(15,23,42,0.4); z-index: 55;
+    }
+    .sb-overlay.open { display: block; }
+
+    /* ══ RESPONSIVE ════════════════════════════════════════════════ */
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); box-shadow: none; }
+      .sidebar.open { transform: none; box-shadow: 4px 0 20px rgba(0,0,0,0.1); }
+      .main-wrap { margin-left: 0; }
+      .content { padding: 16px; }
+    }
 
     .fade-in { animation: fadeUp 0.28s ease both; }
-    @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 
-    .welcome-card { background: var(--ink); border-radius: 14px; padding: 28px 32px; position: relative; overflow: hidden; margin-bottom: 20px; }
-    .welcome-card::before { content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, var(--gold), var(--gold-lt)); }
-    .welcome-card-bg { position: absolute; right: -60px; top: -60px; width: 220px; height: 220px; border: 1px solid rgba(200,150,62,0.1); border-radius: 50%; }
-    .welcome-card-bg::before { content: ''; position: absolute; inset: 28px; border: 1px solid rgba(200,150,62,0.07); border-radius: 50%; }
-
-    .security-bar { display: flex; gap: 24px; flex-wrap: wrap; padding: 14px 20px; background: var(--surface); border-radius: 8px; margin-top: 16px; }
-    .sec-item { display: flex; align-items: center; gap: 7px; font-size: 0.78rem; font-weight: 500; }
-    .sec-dot { width: 7px; height: 7px; border-radius: 50%; }
-
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    @media (max-width: 680px) { .grid-2 { grid-template-columns: 1fr; } }
-    .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
-    @media (max-width: 700px) { .grid-3 { grid-template-columns: 1fr; } }
-
-    .mb-5 { margin-bottom: 20px; } .mb-6 { margin-bottom: 24px; } .p-6 { padding: 24px; } .p-5 { padding: 20px; }
-    .overflow-x-auto { overflow-x: auto; }
-
-    /* ══ Bike variant editor blocks ══ */
-    .variant-block { border: 1.5px solid var(--card-bdr); border-radius: 10px; padding: 16px; margin-bottom: 14px; position: relative; background: var(--surface); }
-    .variant-block-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-    .variant-block-title { font-size: 0.78rem; font-weight: 700; color: var(--ink); text-transform: uppercase; letter-spacing: 0.06em; }
-    .variant-remove-btn { background: var(--red-pale); color: var(--red); border: 1px solid rgba(192,57,43,0.2); border-radius: 6px; width: 24px; height: 24px;
-      display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.9rem; line-height: 1; }
-    .variant-remove-btn:hover { background: #FBDBD8; }
-    .variant-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    @media (max-width: 560px) { .variant-grid { grid-template-columns: 1fr; } }
-    .variant-grid .full { grid-column: 1 / -1; }
-    .img-row { display: flex; gap: 8px; align-items: flex-start; }
-    .img-row .field-input { flex: 1; }
-    .img-upload-btn { flex-shrink: 0; white-space: nowrap; }
-    .img-preview { width: 38px; height: 38px; border-radius: 7px; object-fit: cover; border: 1px solid var(--card-bdr); flex-shrink: 0; background: var(--white); }
-    .table-thumb { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; border: 1px solid var(--card-bdr); display: block; }
-
-    /* ══ Profile page ══ */
-    .profile-avatar-row { display: flex; align-items: center; gap: 18px; margin-bottom: 8px; }
-    .profile-avatar-lg { width: 76px; height: 76px; border-radius: 16px; background: var(--gold); display: flex; align-items: center; justify-content: center;
-      font-family: 'Playfair Display', serif; font-size: 1.6rem; font-weight: 700; color: var(--ink); overflow: hidden; flex-shrink: 0; border: 1px solid var(--card-bdr); }
-    .profile-avatar-lg img { width: 100%; height: 100%; object-fit: cover; }
-
-    /* ══ Password meter (reused) ══ */
-    .pw-meter-track { height: 5px; border-radius: 4px; background: var(--card-bdr); overflow: hidden; margin-top: 9px; }
-    .pw-meter-fill { height: 100%; width: 0%; border-radius: 4px; transition: width 0.2s, background 0.2s; background: var(--red); }
-    .pw-meter-label { font-size: 0.74rem; font-weight: 600; margin-top: 6px; }
-    .pw-checklist { list-style: none; margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
-    .pw-checklist li { font-size: 0.72rem; color: var(--ink-faint); display: flex; align-items: center; gap: 5px; }
-    .pw-checklist li.ok { color: var(--green); }
-    .pw-checklist li::before { content: '○'; font-size: 0.65rem; }
-    .pw-checklist li.ok::before { content: '●'; }
-
-    .form-error-box { display:none; margin-bottom:16px; font-size:0.82rem; padding:10px 14px; border-radius:8px; background:var(--red-pale); border:1px solid rgba(192,57,43,0.2); color:var(--red); }
-    .form-success-box { display:none; margin-bottom:16px; font-size:0.82rem; padding:10px 14px; border-radius:8px; background:var(--green-pale); border:1px solid rgba(26,107,74,0.2); color:var(--green); }
+    /* Firestore loading rows */
+    .skeleton {
+      background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+      background-size: 200% 100%;
+      animation: skeleton 1.2s ease infinite;
+      border-radius: 6px; height: 16px;
+    }
+    @keyframes skeleton { to { background-position: -200% 0%; } }
   </style>
 </head>
 <body>
 
-<!-- ══ AUTH LOADER ══ -->
-<div id="authLoader">
-  <svg width="30" height="30" fill="none" viewBox="0 0 24 24" stroke="var(--gold)" stroke-width="2.2">
-    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>
-  </svg>
-  <p>Verifying session…</p>
-</div>
-
-<div id="appShell">
-
-<!-- Toast -->
+<!-- ── Toast ── -->
 <div id="toast"></div>
 
-<!-- Session expiry warning -->
+<!-- ── Session expiry warning ── -->
 <div class="session-warn" id="sessionWarn">
   <div class="session-warn-box">
-    <div style="font-size:2rem; margin-bottom:12px; color:var(--gold);">⏱</div>
-    <h3 style="font-family:'Playfair Display',serif; font-size:1.2rem; font-weight:600; color:var(--ink); margin-bottom:8px;">Session Expiring</h3>
-    <p style="font-size:0.83rem; color:var(--ink-soft); margin-bottom:6px;">You've been idle. Your session will expire in</p>
-    <p style="font-family:'Playfair Display',serif; font-size:2.8rem; font-weight:700; color:var(--amber); letter-spacing:0.04em; margin-bottom:24px;" id="warnCountdown">2:00</p>
-    <div style="display:flex; gap:12px; justify-content:center;">
+    <div style="font-size:2.6rem; margin-bottom:10px;">⏱</div>
+    <h3 class="font-semibold text-gray-800 text-lg mb-2">Session Expiring</h3>
+    <p class="text-sm text-gray-500 mb-1">No activity detected. Your session expires in</p>
+    <p class="font-display text-4xl tracking-widest mt-2 mb-5" style="color:#d97706;" id="warnCountdown">2:00</p>
+    <div class="flex gap-3 justify-center">
       <button onclick="extendSession()" class="btn btn-primary">Stay Signed In</button>
-      <button onclick="doLogout()" class="btn btn-ghost">Sign Out Now</button>
+      <button onclick="doLogout()" class="btn btn-ghost">Sign Out</button>
     </div>
   </div>
 </div>
 
-<!-- Generic Confirm Modal -->
+<!-- ── Confirm modal ── -->
 <div class="modal-bg" id="confirmModal">
   <div class="modal-box">
-    <h3 id="confirmTitle" class="modal-title">Confirm Action</h3>
-    <p id="confirmMsg" class="modal-msg"></p>
-    <div style="display:flex; gap:10px; justify-content:flex-end;">
+    <h3 id="confirmTitle" class="font-semibold text-gray-900 text-base mb-2">Confirm</h3>
+    <p id="confirmMsg" class="text-sm text-gray-500 mb-6"></p>
+    <div class="flex gap-3 justify-end">
       <button onclick="closeConfirm()" class="btn btn-ghost btn-sm">Cancel</button>
       <button id="confirmOk" class="btn btn-danger btn-sm">Confirm</button>
     </div>
   </div>
 </div>
 
-<!-- Bike Model Add/Edit Modal -->
-<div class="modal-bg" id="bikeModal">
-  <div class="modal-box wide">
-    <h3 class="modal-title" id="bikeModalTitle">Add Bike Model</h3>
-    <p class="modal-msg">All fields are required. Add one row per variant (e.g. different colour/engine spec) — each gets its own serial number.</p>
-    <div class="form-error-box" id="bikeModalError"></div>
-
-    <div class="field-label-wrap" style="margin-bottom:16px;">
-      <label class="field-label">Model Name</label>
-      <input id="bm-model" type="text" class="field-input" placeholder="e.g. Bajaj Pulsar NS200" />
+<!-- ── Create/Edit User Modal ── -->
+<div class="modal-bg" id="userModal">
+  <div class="modal-box" style="max-width:500px;">
+    <div class="flex items-center justify-between mb-5">
+      <h3 id="userModalTitle" class="font-semibold text-gray-900 text-base">Create Manager Account</h3>
+      <button onclick="closeUserModal()" class="btn btn-ghost btn-sm" style="padding:4px 8px;">✕</button>
     </div>
-
-    <div id="variantContainer"></div>
-
-    <button type="button" class="btn btn-ghost btn-sm mb-5" onclick="addVariantBlock()">
-      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-      Add Variant
-    </button>
-
-    <div style="display:flex; gap:10px; justify-content:flex-end; border-top:1px solid var(--card-bdr2); padding-top:18px;">
-      <button onclick="closeBikeModal()" class="btn btn-ghost btn-sm">Cancel</button>
-      <button id="bikeSaveBtn" onclick="saveBikeModel()" class="btn btn-primary btn-sm">Save Model</button>
+    <div id="userModalError" class="alert-box alert-error mb-4"></div>
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="col-span-2 sm:col-span-1">
+        <label class="field-label">Full Name</label>
+        <input id="um-name" type="text" class="field-input" placeholder="e.g. Ram Shrestha" />
+      </div>
+      <div class="col-span-2 sm:col-span-1">
+        <label class="field-label">Email</label>
+        <input id="um-email" type="email" class="field-input" placeholder="e.g. ram@goyng.com.np" />
+      </div>
+      <div class="col-span-2 sm:col-span-1">
+        <label class="field-label">Role</label>
+        <select id="um-role" class="field-input" style="appearance:none;">
+          <option value="owner">Owner</option>
+          <option value="staff">Staff</option>
+        </select>
+      </div>
+      <div class="col-span-2 sm:col-span-1" id="um-pass-wrap">
+        <label class="field-label">Password</label>
+        <input id="um-password" type="password" class="field-input" placeholder="Min. 8 characters" autocomplete="new-password" />
+      </div>
     </div>
-  </div>
-</div>
-
-<!-- Reauth Modal (for sensitive profile changes) -->
-<div class="modal-bg" id="reauthModal">
-  <div class="modal-box">
-    <h3 class="modal-title">Confirm It's You</h3>
-    <p class="modal-msg">For security, re-enter your current password to continue.</p>
-    <div class="form-error-box" id="reauthError"></div>
-    <div class="field-label-wrap" style="margin-bottom:16px;">
-      <label class="field-label">Current Password</label>
-      <input id="reauthPassword" type="password" class="field-input" placeholder="Current password" autocomplete="current-password" />
-    </div>
-    <div style="display:flex; gap:10px; justify-content:flex-end;">
-      <button onclick="closeReauth()" class="btn btn-ghost btn-sm">Cancel</button>
-      <button id="reauthOkBtn" class="btn btn-primary btn-sm">Confirm</button>
+    <div class="flex justify-end gap-3">
+      <button onclick="closeUserModal()" class="btn btn-ghost btn-sm">Cancel</button>
+      <button id="um-save-btn" onclick="saveUser()" class="btn btn-primary btn-sm">Create Account</button>
     </div>
   </div>
 </div>
 
-<!-- Mobile sidebar overlay -->
-<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+<!-- ── Mobile sidebar overlay ── -->
+<div class="sb-overlay" id="sbOverlay" onclick="closeSidebar()"></div>
 
-<!-- ══ SIDEBAR ══════════════════════════════════════════════════════ -->
+<!-- ══════════════════ SIDEBAR ══════════════════════════════════ -->
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
-    <p class="logo-eyebrow">Admin Portal</p>
-    <p class="logo-name">Samriddhi &<br />Brothers</p>
-    <p class="logo-sub">Bajaj Dealership · Go! YNG</p>
+    <div class="stripe"></div>
+    <p class="font-display text-2xl tracking-widest leading-none" style="color:#005EA6; font-family:'Bebas Neue',sans-serif;">ADMIN PANEL</p>
+    <p class="text-xs mt-0.5" style="color:#94a3b8; letter-spacing:0.1em;">SAMRIDDHI &amp; BROTHERS</p>
   </div>
 
-  <nav style="flex:1; overflow-y:auto; padding: 8px 0;" id="sidebar-nav">
+  <nav class="flex-1 overflow-y-auto py-2">
     <div class="nav-group-label">Overview</div>
     <div class="nav-item active" onclick="navigate('dashboard')">
       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
       Dashboard
     </div>
 
-    <div class="nav-group-label" id="nav-group-users" style="display:none;">Access Control</div>
-    <div class="nav-item" id="nav-users" onclick="navigate('users')" style="display:none;">
+    <div class="nav-group-label" id="navGroupUsers" style="display:none;">Access Control</div>
+    <div class="nav-item" id="navUsers" onclick="navigate('users')" style="display:none;">
       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
       Staff &amp; Owners
     </div>
@@ -348,1007 +401,951 @@
       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
       Inventory
     </div>
-
-    <div class="nav-group-label">Account</div>
-    <div class="nav-item" onclick="navigate('profile')">
-      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-      My Profile
+    <div class="nav-item" onclick="navigate('inquiries')">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+      Inquiries
+    </div>
+    <div class="nav-item" onclick="navigate('bookings')">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+      Bookings
     </div>
   </nav>
 
-  <div class="sidebar-user">
-    <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+  <div class="sidebar-footer">
+    <div class="flex items-center gap-2.5 mb-3">
       <div class="avatar" id="sbAvatar">?</div>
-      <div style="min-width:0; flex:1;">
-        <p style="font-size:0.845rem; font-weight:600; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="sbName">–</p>
-        <p style="font-size:0.7rem; color:rgba(255,255,255,0.32);" id="sbRole">–</p>
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-semibold truncate" style="color:#1e293b;" id="sbName">Loading…</p>
+        <p class="text-xs truncate" style="color:#94a3b8;" id="sbRole">–</p>
       </div>
     </div>
     <button onclick="doLogout()" class="btn btn-logout btn-sm">
-      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
       Sign Out
     </button>
   </div>
 </aside>
 
-<!-- ══ MAIN ══════════════════════════════════════════════════════════ -->
+<!-- ══════════════════ MAIN ════════════════════════════════════ -->
 <div class="main-wrap">
 
+  <!-- Topbar -->
   <div class="topbar">
-    <div style="display:flex; align-items:center; gap:12px;">
-      <button class="btn btn-ghost btn-sm" onclick="openSidebar()" style="display:none;" id="menuBtn">
-        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+    <div class="flex items-center gap-3">
+      <button class="btn btn-ghost btn-sm md:hidden" style="padding:6px 8px;" onclick="openSidebar()">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
-      <span class="topbar-title" id="pageTitle">Dashboard</span>
+      <span class="font-semibold text-gray-800 text-sm" id="pageTitle">Dashboard</span>
     </div>
-    <div style="display:flex; align-items:center; gap:12px;">
-      <span style="font-size:0.75rem; font-weight:600; color:var(--gold); letter-spacing:0.05em;" id="tbRole"></span>
-      <div class="avatar" style="width:30px;height:30px;font-size:0.72rem;" id="tbAvatar">?</div>
+    <div class="flex items-center gap-3">
+      <span id="sessionTimer" class="text-xs hidden" style="color:#d97706; font-weight:500;"></span>
+      <span class="text-xs text-gray-400 hidden sm:block" id="tbRole"></span>
+      <div class="avatar text-xs hidden sm:inline-flex" id="tbAvatar" style="width:30px;height:30px;font-size:0.72rem;border-radius:7px;">?</div>
     </div>
   </div>
 
+  <!-- Content -->
   <div class="content">
 
     <!-- ── DASHBOARD ─────────────────────────────────────────── -->
     <div id="sec-dashboard" class="page-sec active fade-in">
-      <div class="welcome-card mb-6">
-        <div class="welcome-card-bg"></div>
-        <p style="font-size:0.65rem; font-weight:700; letter-spacing:0.18em; text-transform:uppercase; color:var(--gold); margin-bottom:6px;">Welcome Back</p>
-        <h2 style="font-family:'Playfair Display',serif; font-size:1.6rem; font-weight:700; color:#fff; margin-bottom:6px;">
-          Good day, <span id="welcomeName">Admin</span>
-        </h2>
-        <p style="font-size:0.83rem; color:rgba(255,255,255,0.38);">
-          Signed in as <span id="welcomeRole" style="color:rgba(200,150,62,0.9);"></span> ·
-          Session auto-expires after 30 min of inactivity.
-        </p>
-        <div class="security-bar">
-          <div class="sec-item"><div class="sec-dot" style="background:var(--green);"></div><span style="color:var(--ink-mid);">Firebase Auth connected</span></div>
-          <div class="sec-item"><div class="sec-dot" style="background:var(--green);"></div><span style="color:var(--ink-mid);">Firestore live data</span></div>
-          <div class="sec-item"><div class="sec-dot" style="background:var(--green);"></div><span style="color:var(--ink-mid);">Route guard enabled</span></div>
-        </div>
-      </div>
-
-      <div class="stat-grid">
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div class="stat-card">
-          <div class="stat-icon" style="background:var(--gold-pale);">
-            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="var(--gold)" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          </div>
-          <p class="stat-label">Total Staff</p>
-          <p class="stat-num" id="stat-staff">–</p>
+          <p class="stat-label">Staff / Owners</p>
+          <p class="stat-num" id="statManagers">–</p>
         </div>
         <div class="stat-card">
-          <div class="stat-icon" style="background:var(--blue-pale);">
-            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="var(--blue)" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-          </div>
           <p class="stat-label">Bike Models</p>
-          <p class="stat-num" id="stat-models">–</p>
+          <p class="stat-num" id="statBikes">–</p>
         </div>
         <div class="stat-card">
-          <div class="stat-icon" style="background:var(--green-pale);">
-            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="var(--green)" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          </div>
-          <p class="stat-label">Total Variants</p>
-          <p class="stat-num" id="stat-variants">–</p>
+          <p class="stat-label">Inquiries</p>
+          <p class="stat-num" id="statInquiries">–</p>
         </div>
         <div class="stat-card">
-          <div class="stat-icon" style="background:var(--red-pale);">
-            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="var(--red)" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-          </div>
-          <p class="stat-label">Inventory</p>
-          <p class="stat-num dim">—</p>
-          <p class="stat-sub">Coming soon</p>
+          <p class="stat-label">Bookings</p>
+          <p class="stat-num" id="statBookings">–</p>
         </div>
       </div>
 
-      <div class="grid-2">
-        <div class="card p-5">
-          <h4 style="font-family:'Playfair Display',serif; font-size:1rem; font-weight:600; color:var(--ink); margin-bottom:6px;">Bajaj Price List</h4>
-          <p style="font-size:0.83rem; color:var(--ink-soft); margin-bottom:16px;">Manage models, variants, and insurance pricing — live from Firestore.</p>
-          <button class="btn btn-primary btn-sm" onclick="navigate('bikes')">Go to Price List →</button>
+      <div class="card mb-4">
+        <div class="card-body">
+          <p class="font-semibold text-gray-800 mb-0.5">Welcome back, <span id="welcomeName">Admin</span></p>
+          <p class="text-sm text-gray-400 mb-4">
+            Signed in as <span id="welcomeRole" class="font-medium" style="color:#005EA6;"></span> ·
+            Session auto-expires after 30 min of inactivity
+          </p>
+          <div class="grid sm:grid-cols-3 gap-3">
+            <div class="flex items-center gap-2 text-sm" style="color:#166534;">
+              <div style="width:8px;height:8px;border-radius:50%;background:#22c55e;"></div>
+              Firebase Auth Active
+            </div>
+            <div class="flex items-center gap-2 text-sm" style="color:#166534;">
+              <div style="width:8px;height:8px;border-radius:50%;background:#22c55e;"></div>
+              Firestore Connected
+            </div>
+            <div class="flex items-center gap-2 text-sm" style="color:#166534;">
+              <div style="width:8px;height:8px;border-radius:50%;background:#22c55e;"></div>
+              Route Guard Active
+            </div>
+          </div>
         </div>
-        <div class="placeholder-zone">
-          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-          <h4>Inventory Tracking</h4>
-          <p>Track stock by model, colour, and chassis number. Planned next.</p>
+      </div>
+
+      <!-- Recent activity placeholder -->
+      <div class="card">
+        <div class="card-header">
+          <p class="font-semibold text-sm text-gray-700">Recent Inquiries</p>
+          <button onclick="navigate('inquiries')" class="btn btn-ghost btn-sm text-xs">View All</button>
+        </div>
+        <div id="recentInquiries" class="card-body text-sm text-gray-400 text-center py-8">
+          <div class="spinner mx-auto mb-3"></div>
+          Loading…
         </div>
       </div>
     </div>
 
     <!-- ── USERS ──────────────────────────────────────────────── -->
     <div id="sec-users" class="page-sec fade-in">
-      <div id="createPanel" class="card mb-6" style="display:none;">
-        <div class="card-header">
-          <div>
-            <p class="card-title">Create Manager Account</p>
-            <p style="font-size:0.78rem; color:var(--ink-soft); margin-top:3px;">Assign login access to an Owner or Staff member</p>
-          </div>
-          <span class="badge badge-master">Master Only</span>
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="font-semibold text-gray-800 text-base">Staff &amp; Owners</h2>
+          <p class="text-xs text-gray-400 mt-0.5">Manage admin panel access · stored in Firestore <code>admins</code> collection</p>
         </div>
-        <div class="p-6">
-          <div id="createError" class="form-error-box"></div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
-            <div>
-              <label class="field-label">Full Name</label>
-              <input id="f-name" type="text" class="field-input" placeholder="e.g. Ram Shrestha" />
-            </div>
-            <div>
-              <label class="field-label">Email</label>
-              <input id="f-email" type="email" class="field-input" placeholder="e.g. ram@goyng.com.np" />
-            </div>
-            <div>
-              <label class="field-label">Username</label>
-              <input id="f-username" type="text" class="field-input" placeholder="e.g. ram_owner" autocomplete="off" />
-            </div>
-            <div>
-              <label class="field-label">Role</label>
-              <select id="f-role" class="field-input" style="appearance:none; cursor:pointer;">
-                <option value="owner">Owner</option>
-                <option value="staff">Staff</option>
-              </select>
-            </div>
-            <div>
-              <label class="field-label">Password</label>
-              <input id="f-password" type="password" class="field-input" placeholder="Strong password required" autocomplete="new-password" />
-              <div class="pw-meter-track"><div class="pw-meter-fill" id="f-pw-fill"></div></div>
-              <p class="pw-meter-label" id="f-pw-label"></p>
-            </div>
-            <div style="display:flex; align-items:flex-end;">
-              <button onclick="createUser()" class="btn btn-primary" style="width:100%;">
-                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-                Create Account
-              </button>
-            </div>
-          </div>
-          <p class="field-help">Password must have 8+ characters with uppercase, lowercase, a number, and a symbol.</p>
-        </div>
+        <button id="createUserBtn" onclick="openUserModal()" class="btn btn-primary btn-sm hidden">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          Add Manager
+        </button>
       </div>
 
       <div class="card">
         <div class="card-header">
-          <p class="card-title">Managers</p>
-          <span style="font-size:0.75rem; color:var(--ink-soft);" id="userCountLabel">—</span>
-        </div>
-        <div class="overflow-x-auto">
-          <table class="data-table">
-            <thead><tr><th>Name</th><th>Email / Username</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
-            <tbody id="userTbody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── BIKES / PRICE LIST ──────────────────────────────────── -->
-    <div id="sec-bikes" class="page-sec fade-in">
-      <div class="card p-5 mb-5">
-        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
-          <div>
-            <p class="card-title">Bajaj Price List Manager</p>
-            <p style="font-size:0.78rem; color:var(--ink-soft); margin-top:3px;">Live Firestore collection: <code>bikes</code> · Models can have any number of variants</p>
-          </div>
-          <span class="badge badge-owner" id="bikesAccessBadge">Owner / Staff</span>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <p class="card-title">Models &amp; Variants</p>
-          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-            <input id="bikeSearch" class="field-input" style="width:200px;" placeholder="Search model…" />
-            <button class="btn btn-ghost btn-sm" onclick="exportBikesCSV()">Export CSV</button>
-            <button class="btn btn-primary btn-sm" id="addModelBtn" onclick="openBikeModal()" style="display:none;">
-              <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-              Add Model
-            </button>
-          </div>
+          <p class="font-semibold text-sm text-gray-700">All Managers</p>
+          <span class="text-xs text-gray-400" id="userCount">–</span>
         </div>
         <div class="overflow-x-auto">
           <table class="data-table">
             <thead>
               <tr>
-                <th style="width:50px;">S.N.</th><th>Model</th><th>Price</th>
-                <th>1st Party Ins.</th><th>Finance Ins.</th><th>3rd Party Ins.</th>
-                <th>Image</th><th>Actions</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th id="actionsColHead"></th>
               </tr>
             </thead>
-            <tbody id="bikeTbody"></tbody>
+            <tbody id="userTbody">
+              <tr><td colspan="6" class="text-center py-10">
+                <div class="spinner mx-auto mb-2"></div>
+                <span class="text-xs text-gray-400">Loading from Firestore…</span>
+              </td></tr>
+            </tbody>
           </table>
         </div>
       </div>
     </div>
 
-    <!-- ── INVENTORY PLACEHOLDER ──────────────────────────────── -->
-    <div id="sec-inventory" class="page-sec fade-in">
-      <div class="placeholder-zone">
-        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-        <h4>Inventory</h4>
-        <p>Track stock by model, color, and chassis number. Firestore collection: <code>inventory</code> (planned).</p>
+    <!-- ── PRICE LIST ─────────────────────────────────────────── -->
+    <div id="sec-bikes" class="page-sec fade-in">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="font-semibold text-gray-800 text-base">Bajaj Price List</h2>
+          <p class="text-xs text-gray-400 mt-0.5">Firestore collection: <code>bikes</code></p>
+        </div>
+        <button id="addBikeBtn" onclick="openBikeModal()" class="btn btn-primary btn-sm hidden">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          Add Model
+        </button>
+      </div>
+
+      <!-- Add/Edit Bike form (inline) -->
+      <div id="bikeFormCard" class="card mb-4 hidden">
+        <div class="card-header">
+          <p class="font-semibold text-sm text-gray-700" id="bikeFormTitle">Add Bike Model</p>
+          <button onclick="closeBikeForm()" class="btn btn-ghost btn-sm" style="padding:4px 8px;">✕</button>
+        </div>
+        <div class="card-body">
+          <div id="bikeFormError" class="alert-box alert-error mb-3"></div>
+          <div class="grid sm:grid-cols-2 gap-3 mb-4">
+            <div>
+              <label class="field-label">Model Name</label>
+              <input id="bf-model" type="text" class="field-input" placeholder="e.g. Pulsar NS200" />
+            </div>
+            <div>
+              <label class="field-label">Price (NPR)</label>
+              <input id="bf-price" type="number" class="field-input" placeholder="e.g. 385000" />
+            </div>
+            <div>
+              <label class="field-label">Category</label>
+              <select id="bf-category" class="field-input" style="appearance:none;">
+                <option value="commuter">Commuter</option>
+                <option value="sport">Sport</option>
+                <option value="naked">Naked</option>
+                <option value="adventure">Adventure</option>
+                <option value="scooter">Scooter</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Availability</label>
+              <select id="bf-status" class="field-input" style="appearance:none;">
+                <option value="available">Available</option>
+                <option value="limited">Limited Stock</option>
+                <option value="on_order">On Order</option>
+                <option value="unavailable">Unavailable</option>
+              </select>
+            </div>
+            <div class="sm:col-span-2">
+              <label class="field-label">Description / Specs</label>
+              <input id="bf-desc" type="text" class="field-input" placeholder="e.g. 200cc, ABS, LED" />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="field-label">Image URL</label>
+              <input id="bf-image" type="url" class="field-input" placeholder="https://…" />
+            </div>
+          </div>
+          <div class="flex gap-3 justify-end">
+            <button onclick="closeBikeForm()" class="btn btn-ghost btn-sm">Cancel</button>
+            <button id="bf-save" onclick="saveBike()" class="btn btn-primary btn-sm">Save Model</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <p class="font-semibold text-sm text-gray-700">Bike Models</p>
+          <span class="text-xs text-gray-400" id="bikeCount">–</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th>Category</th>
+                <th>Price</th>
+                <th>Status</th>
+                <th id="bikeActionsHead"></th>
+              </tr>
+            </thead>
+            <tbody id="bikeTbody">
+              <tr><td colspan="5" class="text-center py-10">
+                <div class="spinner mx-auto mb-2"></div>
+                <span class="text-xs text-gray-400">Loading from Firestore…</span>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <!-- ── MY PROFILE ──────────────────────────────────────────── -->
-    <div id="sec-profile" class="page-sec fade-in">
-      <div class="grid-2">
-
-        <!-- Photo + Name + Username -->
-        <div class="card p-6">
-          <p class="card-title mb-5">Profile Details</p>
-
-          <div class="profile-avatar-row mb-5">
-            <div class="profile-avatar-lg" id="profileAvatarLg">?</div>
-            <div>
-              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('avatarFileInput').click()">Upload Photo</button>
-              <input type="file" id="avatarFileInput" accept="image/*" style="display:none;" onchange="handleAvatarUpload(event)" />
-              <p class="field-help" id="avatarUploadStatus">JPG/PNG, up to 5MB.</p>
-            </div>
-          </div>
-          <div style="margin-bottom:16px;">
-            <label class="field-label">Or paste an image URL</label>
-            <div style="display:flex; gap:8px;">
-              <input id="p-photoUrl" type="text" class="field-input" placeholder="https://…" />
-              <button class="btn btn-ghost btn-sm" onclick="savePhotoUrl()">Save</button>
-            </div>
-          </div>
-
-          <hr style="border:none; border-top:1px solid var(--card-bdr2); margin:18px 0;" />
-
-          <div class="form-error-box" id="profileNameError"></div>
-          <div class="form-success-box" id="profileNameSuccess"></div>
-          <div style="margin-bottom:14px;">
-            <label class="field-label">Full Name</label>
-            <div style="display:flex; gap:8px;">
-              <input id="p-name" type="text" class="field-input" />
-              <button class="btn btn-ghost btn-sm" onclick="saveProfileName()">Save</button>
-            </div>
-          </div>
-
-          <div class="form-error-box" id="profileUsernameError"></div>
-          <div class="form-success-box" id="profileUsernameSuccess"></div>
-          <div>
-            <label class="field-label">Username</label>
-            <div style="display:flex; gap:8px;">
-              <input id="p-username" type="text" class="field-input" />
-              <button class="btn btn-ghost btn-sm" onclick="saveProfileUsername()">Save</button>
-            </div>
-            <p class="field-help">3–20 characters: letters, numbers, underscore only.</p>
-          </div>
+    <!-- ── INVENTORY ───────────────────────────────────────────── -->
+    <div id="sec-inventory" class="page-sec fade-in">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="font-semibold text-gray-800 text-base">Inventory</h2>
+          <p class="text-xs text-gray-400 mt-0.5">Firestore collection: <code>inventory</code></p>
         </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <p class="font-semibold text-sm text-gray-700">Stock Tracker</p>
+          <span class="text-xs text-gray-400" id="invCount">–</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="data-table">
+            <thead>
+              <tr><th>Model</th><th>Color</th><th>Chassis No.</th><th>Engine No.</th><th>Status</th><th>Date In</th></tr>
+            </thead>
+            <tbody id="invTbody">
+              <tr><td colspan="6" class="text-center py-10">
+                <div class="spinner mx-auto mb-2"></div>
+                <span class="text-xs text-gray-400">Loading from Firestore…</span>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
-        <!-- Email + Password -->
-        <div class="card p-6">
-          <p class="card-title mb-5">Login &amp; Security</p>
+    <!-- ── INQUIRIES ──────────────────────────────────────────── -->
+    <div id="sec-inquiries" class="page-sec fade-in">
+      <div class="mb-4">
+        <h2 class="font-semibold text-gray-800 text-base">Customer Inquiries</h2>
+        <p class="text-xs text-gray-400 mt-0.5">Firestore collection: <code>inquiries</code> · from form.html submissions</p>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <p class="font-semibold text-sm text-gray-700">All Inquiries</p>
+          <span class="text-xs text-gray-400" id="inqCount">–</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="data-table">
+            <thead>
+              <tr><th>Name</th><th>Phone</th><th>Model Interested</th><th>Message</th><th>Date</th><th>Status</th></tr>
+            </thead>
+            <tbody id="inqTbody">
+              <tr><td colspan="6" class="text-center py-10">
+                <div class="spinner mx-auto mb-2"></div>
+                <span class="text-xs text-gray-400">Loading from Firestore…</span>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
-          <div class="form-error-box" id="profileEmailError"></div>
-          <div class="form-success-box" id="profileEmailSuccess"></div>
-          <div style="margin-bottom:18px;">
-            <label class="field-label">Current Email</label>
-            <input type="text" class="field-input" id="p-currentEmail" disabled style="opacity:0.7;" />
-          </div>
-          <div style="margin-bottom:10px;">
-            <label class="field-label">New Email</label>
-            <input id="p-newEmail" type="email" class="field-input" placeholder="new.email@example.com" />
-          </div>
-          <button class="btn btn-ghost btn-sm mb-6" onclick="changeEmail()">Send Verification to New Email</button>
-          <p class="field-help" style="margin-top:-14px; margin-bottom:20px;">We'll email a confirmation link — your sign-in email updates once you click it.</p>
-
-          <hr style="border:none; border-top:1px solid var(--card-bdr2); margin:0 0 18px;" />
-
-          <div class="form-error-box" id="profilePwError"></div>
-          <div class="form-success-box" id="profilePwSuccess"></div>
-          <div style="margin-bottom:14px;">
-            <label class="field-label">New Password</label>
-            <input id="p-newPassword" type="password" class="field-input" placeholder="Strong password required" autocomplete="new-password" />
-            <div class="pw-meter-track"><div class="pw-meter-fill" id="p-pw-fill"></div></div>
-            <p class="pw-meter-label" id="p-pw-label"></p>
-            <ul class="pw-checklist" id="p-pw-checklist">
-              <li data-k="length">8+ characters</li><li data-k="upper">Uppercase letter</li>
-              <li data-k="lower">Lowercase letter</li><li data-k="number">Number</li><li data-k="special">Symbol</li>
-            </ul>
-          </div>
-          <div style="margin-bottom:16px;">
-            <label class="field-label">Confirm New Password</label>
-            <input id="p-newPassword2" type="password" class="field-input" placeholder="Re-enter password" autocomplete="new-password" />
-          </div>
-          <button class="btn btn-primary btn-sm" onclick="changePassword()">Update Password</button>
+    <!-- ── BOOKINGS ────────────────────────────────────────────── -->
+    <div id="sec-bookings" class="page-sec fade-in">
+      <div class="mb-4">
+        <h2 class="font-semibold text-gray-800 text-base">Bookings &amp; Allocations</h2>
+        <p class="text-xs text-gray-400 mt-0.5">Firestore collection: <code>bookings</code></p>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <p class="font-semibold text-sm text-gray-700">All Bookings</p>
+          <span class="text-xs text-gray-400" id="bookCount">–</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="data-table">
+            <thead>
+              <tr><th>Customer</th><th>Phone</th><th>Model</th><th>Amount</th><th>Date</th><th>Status</th></tr>
+            </thead>
+            <tbody id="bookTbody">
+              <tr><td colspan="6" class="text-center py-10">
+                <div class="spinner mx-auto mb-2"></div>
+                <span class="text-xs text-gray-400">Loading from Firestore…</span>
+              </td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
 
   </div><!-- /content -->
 </div><!-- /main-wrap -->
-</div><!-- /appShell -->
 
-<script type="module">
-import { auth, db, storage } from './firebase-init.js';
-import {
-  onAuthStateChanged, signOut, updateProfile, updatePassword,
-  reauthenticateWithCredential, EmailAuthProvider, verifyBeforeUpdateEmail,
-  createUserWithEmailAndPassword, initializeApp as _unused
-} from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js';
-import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js';
-import { getAuth } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js';
-import {
-  doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where,
-  limit, getDocs, onSnapshot, orderBy, serverTimestamp
-} from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js';
-import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-storage.js';
-import { firebaseConfig } from './firebase-init.js';
-import { isStrongPassword, passwordChecks, passwordScore, strengthMeta } from './auth-utils.js';
+<!-- ══════════════════════════════════════════════════════════════
+     FIREBASE CONFIG + MAIN SCRIPT
+══════════════════════════════════════════════════════════════ -->
+<script>
+/* ══ FIREBASE INIT ════════════════════════════════════════════════ */
+const firebaseConfig = {
+  apiKey:            "REPLACE_WITH_YOUR_NEW_ROTATED_API_KEY",
+  authDomain:        "project-jun-2f357.firebaseapp.com",
+  projectId:         "project-jun-2f357",
+  storageBucket:     "project-jun-2f357.firebasestorage.app",
+  messagingSenderId: "276638637528",
+  appId:             "1:276638637528:web:62d034cfc13f8d6d51e6ad",
+  measurementId:     "G-875B4DRWNK"
+};
 
-const $ = id => document.getElementById(id);
-const LAST_ACTIVE_KEY = '__sba_last_active';
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+// Use SESSION persistence
+auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+
+/* ══ CONSTANTS ════════════════════════════════════════════════════ */
 const SESSION_TIMEOUT = 30 * 60 * 1000;
-const WARN_BEFORE     = 2 * 60 * 1000;
+const WARN_BEFORE     =  2 * 60 * 1000;
+const IDLE_KEY        = '__sba_idle';
 
-let me = null;          // Firestore profile doc data, merged with uid
-let firebaseUser = null; // Firebase Auth user object
-let isMaster = false, isOwner = false, isStaff = false;
-let unsubUsers = null, unsubBikes = null;
-let bikesCache = []; // [{id, model, variants, createdAt}]
+/* ══ STATE ════════════════════════════════════════════════════════ */
+let currentUser    = null;   // Firebase User object
+let currentAdmin   = null;   // Firestore admin document data
+let isMaster       = false;
+let isOwnerOrAbove = false;
 
-/* ════════════════════════════════════════════════════════════════
-   AUTH GUARD
-   ════════════════════════════════════════════════════════════════ */
-onAuthStateChanged(auth, async (user) => {
-  if (!user) { redirectToLogin('unauthorized'); return; }
+/* ══ AUTH GUARD ═══════════════════════════════════════════════════ */
+auth.onAuthStateChanged(async user => {
+  if (!user) {
+    window.location.replace('admin.html?reason=unauthorized');
+    return;
+  }
+
+  // Idle timeout check
+  const lastActive = parseInt(sessionStorage.getItem(IDLE_KEY) || '0', 10);
+  if (lastActive && Date.now() - lastActive >= SESSION_TIMEOUT) {
+    await auth.signOut();
+    sessionStorage.removeItem(IDLE_KEY);
+    window.location.replace('admin.html?reason=expired');
+    return;
+  }
+
+  // Fetch admin profile from Firestore
   try {
-    const snap = await getDoc(doc(db, 'users', user.uid));
-    if (!snap.exists()) { await signOut(auth); redirectToLogin('unauthorized'); return; }
-    const profile = snap.data();
-    if (profile.status === 'inactive') { await signOut(auth); redirectToLogin('inactive'); return; }
+    const snap = await db.collection('admins').doc(user.uid).get();
+    if (!snap.exists) {
+      await auth.signOut();
+      window.location.replace('admin.html?reason=unauthorized');
+      return;
+    }
 
-    firebaseUser = user;
-    me = { uid: user.uid, ...profile };
-    isMaster = me.role === 'master';
-    isOwner  = me.role === 'owner';
-    isStaff  = me.role === 'staff';
+    currentUser  = user;
+    currentAdmin = { id: snap.id, ...snap.data() };
+    isMaster       = currentAdmin.role === 'master';
+    isOwnerOrAbove = isMaster || currentAdmin.role === 'owner';
 
-    bootApp();
-  } catch (e) {
-    redirectToLogin('unauthorized');
+    if (currentAdmin.status === 'inactive') {
+      await auth.signOut();
+      window.location.replace('admin.html?reason=unauthorized');
+      return;
+    }
+
+    sessionStorage.setItem(IDLE_KEY, Date.now().toString());
+    initDashboard();
+  } catch(e) {
+    console.error('Firestore admin fetch error:', e);
+    window.location.replace('admin.html?reason=unauthorized');
   }
 });
 
-function redirectToLogin(reason) {
-  window.location.replace('admin.html?reason=' + reason);
-}
+/* ══ INIT DASHBOARD ═══════════════════════════════════════════════ */
+function initDashboard() {
+  // Populate sidebar / topbar
+  const name    = currentAdmin.name || currentUser.email;
+  const role    = currentAdmin.role;
+  const initials = name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
 
-function bootApp() {
-  document.body.classList.add('app-ready');
+  document.getElementById('sbAvatar').textContent  = initials;
+  document.getElementById('tbAvatar').textContent  = initials;
+  document.getElementById('sbName').textContent    = name;
+  document.getElementById('sbRole').textContent    = capitalize(role);
+  document.getElementById('tbRole').textContent    = '[' + role.toUpperCase() + ']';
+  document.getElementById('welcomeName').textContent = name.split(' ')[0];
+  document.getElementById('welcomeRole').textContent = capitalize(role);
 
-  const initials = (me.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-  setAvatarEl($('sbAvatar'), me.photoURL, initials);
-  setAvatarEl($('tbAvatar'), me.photoURL, initials);
-  $('sbName').textContent = me.name;
-  $('sbRole').textContent = capitalize(me.role);
-  $('tbRole').textContent = me.role.toUpperCase();
-  $('welcomeName').textContent = (me.name || '').split(' ')[0];
-  $('welcomeRole').textContent = me.role;
-
-  if (isMaster || isOwner) {
-    $('nav-group-users').style.display = '';
-    $('nav-users').style.display = '';
-  }
-  if (isMaster || isOwner) {
-    $('addModelBtn').style.display = '';
-    $('bikesAccessBadge').textContent = isMaster ? 'Master' : 'Owner';
-  } else {
-    $('bikesAccessBadge').textContent = 'Staff · View Only';
+  // Show users nav for master/owner
+  if (isOwnerOrAbove) {
+    document.getElementById('navGroupUsers').style.display = '';
+    document.getElementById('navUsers').style.display      = '';
+    document.getElementById('createUserBtn').classList.remove('hidden');
+    if (isMaster) document.getElementById('actionsColHead').textContent = 'Actions';
   }
 
-  if (window.innerWidth <= 768) $('menuBtn').style.display = '';
-
-  prefillProfileForm();
-  startRealtimeListeners();
-  scheduleTimers();
+  startIdleTimer();
+  loadDashboardStats();
+  loadRecentInquiries();
 }
 
-function setAvatarEl(el, photoURL, initials) {
-  if (photoURL) { el.innerHTML = `<img src="${esc(photoURL)}" alt="" />`; }
-  else { el.textContent = initials; }
-}
+/* ══ SESSION / IDLE MANAGEMENT ════════════════════════════════════ */
+let idleTimeout, warnTimeout, warnInterval;
+let warnActive = false;
 
-function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
-function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function formatDate(ts) {
-  if (!ts) return '–';
-  try {
-    const d = ts.toDate ? ts.toDate() : new Date(ts);
-    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-  } catch { return '–'; }
+function touchIdle() {
+  sessionStorage.setItem(IDLE_KEY, Date.now().toString());
 }
-function formatNPR(n) {
-  const num = Number(n) || 0;
-  return 'Rs. ' + num.toLocaleString('en-IN');
-}
-
-let toastT;
-function showToast(msg, isError) {
-  const el = $('toast');
-  el.textContent = msg;
-  el.classList.toggle('error', !!isError);
-  el.classList.add('show');
-  clearTimeout(toastT);
-  toastT = setTimeout(() => el.classList.remove('show'), 3400);
-}
-window.showToast = showToast;
-
-/* ════════════════════════════════════════════════════════════════
-   SESSION IDLE TIMER (kept for UX parity; Firebase keeps you signed
-   in indefinitely otherwise, so we still sign out after 30 idle min)
-   ════════════════════════════════════════════════════════════════ */
-let idleTimer, warnTimer, warnInterval, warnActive = false;
-function touchSession() { localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now())); }
-function lastActive() { return parseInt(localStorage.getItem(LAST_ACTIVE_KEY) || String(Date.now()), 10); }
-function scheduleTimers() {
-  clearTimeout(idleTimer); clearTimeout(warnTimer); clearInterval(warnInterval);
+function resetTimers() {
+  touchIdle();
+  clearTimeout(idleTimeout);
+  clearTimeout(warnTimeout);
+  clearInterval(warnInterval);
   if (warnActive) hideWarn();
-  const remaining = SESSION_TIMEOUT - (Date.now() - lastActive());
-  warnTimer = setTimeout(showWarn, Math.max(0, remaining - WARN_BEFORE));
-  idleTimer = setTimeout(() => { hideWarn(); doLogout('expired'); }, Math.max(0, remaining));
+
+  warnTimeout = setTimeout(showWarn, SESSION_TIMEOUT - WARN_BEFORE);
+  idleTimeout = setTimeout(() => { hideWarn(); doLogout('expired'); }, SESSION_TIMEOUT);
 }
-function resetIdle() { touchSession(); scheduleTimers(); }
+function startIdleTimer() {
+  ['click','keydown','mousemove','touchstart','scroll'].forEach(ev => {
+    document.addEventListener(ev, resetTimers, { passive: true });
+  });
+  resetTimers();
+}
+
+// Tab visibility re-check
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  const last = parseInt(sessionStorage.getItem(IDLE_KEY) || '0', 10);
+  if (last && Date.now() - last >= SESSION_TIMEOUT) {
+    doLogout('expired');
+  } else {
+    resetTimers();
+  }
+});
+
 function showWarn() {
   warnActive = true;
-  $('sessionWarn').classList.add('open');
+  document.getElementById('sessionWarn').classList.add('open');
   let rem = WARN_BEFORE;
+  const el = document.getElementById('warnCountdown');
   function tick() {
-    const m = Math.floor(rem / 60000), s = Math.floor((rem % 60000) / 1000);
-    $('warnCountdown').textContent = `${m}:${String(s).padStart(2, '0')}`;
+    const m = Math.floor(rem / 60000);
+    const s = Math.floor((rem % 60000) / 1000);
+    el.textContent = `${m}:${String(s).padStart(2,'0')}`;
     rem -= 1000;
     if (rem < 0) { hideWarn(); doLogout('expired'); }
   }
   tick();
   warnInterval = setInterval(tick, 1000);
 }
-function hideWarn() { warnActive = false; $('sessionWarn').classList.remove('open'); clearInterval(warnInterval); }
-window.extendSession = function () { resetIdle(); hideWarn(); showToast('Session extended for 30 minutes.'); };
+function hideWarn() {
+  warnActive = false;
+  document.getElementById('sessionWarn').classList.remove('open');
+  clearInterval(warnInterval);
+}
+function extendSession() { resetTimers(); hideWarn(); showToast('✅ Session extended for 30 minutes.'); }
 
-['click', 'keydown', 'mousemove', 'touchstart', 'scroll'].forEach(ev => document.addEventListener(ev, resetIdle, { passive: true }));
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible') return;
-  if (Date.now() - lastActive() >= SESSION_TIMEOUT) { doLogout('expired'); return; }
-  scheduleTimers();
-});
+/* ══ LOGOUT ═══════════════════════════════════════════════════════ */
+async function doLogout(reason) {
+  reason = reason || 'logout';
+  sessionStorage.removeItem(IDLE_KEY);
+  await auth.signOut();
+  window.location.replace('admin.html?reason=' + reason);
+}
 
-window.doLogout = function (reason) {
-  signOut(auth).finally(() => {
-    localStorage.removeItem(LAST_ACTIVE_KEY);
-    window.location.replace('admin.html?reason=' + (reason || 'logout'));
-  });
-};
+/* ══ NAVIGATION ═══════════════════════════════════════════════════ */
+const PAGE_TITLES = { dashboard:'Dashboard', users:'Staff & Owners', bikes:'Price List', inventory:'Inventory', inquiries:'Inquiries', bookings:'Bookings' };
 
-/* ════════════════════════════════════════════════════════════════
-   NAVIGATION
-   ════════════════════════════════════════════════════════════════ */
-const TITLES = { dashboard: 'Dashboard', users: 'Staff & Owners', bikes: 'Price List', inventory: 'Inventory', profile: 'My Profile' };
+function navigate(sec) {
+  if ((sec === 'users') && !isOwnerOrAbove) { showToast('⚠ Access denied.'); return; }
 
-window.navigate = function (section) {
-  if (section === 'users' && !isMaster && !isOwner) { showToast('Access denied for your role.', true); return; }
   document.querySelectorAll('.page-sec').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const sec = $('sec-' + section);
-  if (sec) { sec.classList.add('active', 'fade-in'); setTimeout(() => sec.classList.remove('fade-in'), 400); }
-  document.querySelector(`.nav-item[onclick="navigate('${section}')"]`)?.classList.add('active');
-  $('pageTitle').textContent = TITLES[section] || section;
+
+  const el = document.getElementById('sec-' + sec);
+  if (el) { el.classList.add('active','fade-in'); setTimeout(() => el.classList.remove('fade-in'),400); }
+
+  const ni = document.querySelector(`.nav-item[onclick="navigate('${sec}')"]`);
+  if (ni) ni.classList.add('active');
+  document.getElementById('pageTitle').textContent = PAGE_TITLES[sec] || sec;
   closeSidebar();
-};
 
-window.openSidebar = function () { $('sidebar').classList.add('open'); $('sidebarOverlay').classList.add('open'); };
-window.closeSidebar = function () { $('sidebar').classList.remove('open'); $('sidebarOverlay').classList.remove('open'); };
-
-/* Generic confirm modal */
-let confirmCb = null;
-function openConfirm(title, msg, cb) {
-  $('confirmTitle').textContent = title;
-  $('confirmMsg').textContent = msg;
-  confirmCb = cb;
-  $('confirmOk').onclick = () => { confirmCb && confirmCb(); closeConfirm(); };
-  $('confirmModal').classList.add('open');
-}
-window.closeConfirm = function () { $('confirmModal').classList.remove('open'); confirmCb = null; };
-$('confirmModal').addEventListener('click', e => { if (e.target === $('confirmModal')) closeConfirm(); });
-
-/* ════════════════════════════════════════════════════════════════
-   REALTIME LISTENERS
-   ════════════════════════════════════════════════════════════════ */
-function startRealtimeListeners() {
-  unsubUsers = onSnapshot(collection(db, 'users'), snap => {
-    const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    $('stat-staff').textContent = users.length;
-    renderUsers(users);
-  }, () => showToast('Could not load staff list.', true));
-
-  unsubBikes = onSnapshot(query(collection(db, 'bikes'), orderBy('createdAt', 'asc')), snap => {
-    bikesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    const totalVariants = bikesCache.reduce((sum, b) => sum + (b.variants || []).length, 0);
-    $('stat-models').textContent = bikesCache.length;
-    $('stat-variants').textContent = totalVariants;
-    renderBikes();
-  }, () => showToast('Could not load price list.', true));
+  // Load data on navigate
+  const loaders = { dashboard: () => { loadDashboardStats(); loadRecentInquiries(); }, users: loadUsers, bikes: loadBikes, inventory: loadInventory, inquiries: loadInquiries, bookings: loadBookings };
+  if (loaders[sec]) loaders[sec]();
 }
 
-/* ════════════════════════════════════════════════════════════════
-   USER MANAGEMENT (Master creates Owner/Staff via secondary app
-   instance so the Master's own session is never disturbed)
-   ════════════════════════════════════════════════════════════════ */
-function renderUsers(users) {
-  $('userCountLabel').textContent = users.length + ' account' + (users.length !== 1 ? 's' : '');
-  if (isMaster) $('createPanel').style.display = '';
+/* ══ DASHBOARD STATS ══════════════════════════════════════════════ */
+async function loadDashboardStats() {
+  // Load counts from Firestore in parallel
+  const [admSnap, bikeSnap, inqSnap, bookSnap] = await Promise.all([
+    db.collection('admins').where('role','!=','master').get(),
+    db.collection('bikes').get(),
+    db.collection('inquiries').get(),
+    db.collection('bookings').get(),
+  ]).catch(() => [null,null,null,null]);
 
-  const tbody = $('userTbody');
-  if (!users.length) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:40px 20px; font-size:0.845rem; color:var(--ink-faint);">No managers yet.</td></tr>`;
-    return;
-  }
-  // Master first, then owners, then staff
-  const order = { master: 0, owner: 1, staff: 2 };
-  users.sort((a, b) => (order[a.role] ?? 9) - (order[b.role] ?? 9));
-
-  tbody.innerHTML = users.map(u => `
-    <tr>
-      <td>
-        <div style="display:flex; align-items:center; gap:10px;">
-          <div class="avatar" style="width:30px;height:30px;font-size:0.72rem;border-radius:7px;">
-            ${u.photoURL ? `<img src="${esc(u.photoURL)}" alt="" />` : esc((u.name || '?').charAt(0).toUpperCase())}
-          </div>
-          <span style="font-weight:600; color:var(--ink);">${esc(u.name)}</span>
-        </div>
-      </td>
-      <td>
-        <div style="color:var(--ink-mid);">${esc(u.email)}</div>
-        <div style="font-size:0.75rem; color:var(--ink-soft); margin-top:2px;">@${esc(u.username || '–')}</div>
-      </td>
-      <td><span class="badge badge-${u.role}">${u.role}</span></td>
-      <td><span class="badge ${u.status === 'active' ? 'badge-active' : 'badge-inactive'}">${u.status}</span></td>
-      <td style="font-size:0.78rem; color:var(--ink-soft);">${formatDate(u.createdAt)}</td>
-      <td>
-        ${isMaster && u.role !== 'master' ? `
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          ${u.status === 'active'
-            ? `<button onclick="toggleStatus('${u.id}','inactive')" class="btn btn-warn btn-sm">Deactivate</button>`
-            : `<button onclick="toggleStatus('${u.id}','active')" class="btn btn-ok btn-sm">Activate</button>`}
-          <button onclick="confirmDeleteUser('${u.id}','${esc(u.name)}')" class="btn btn-danger btn-sm">Delete</button>
-        </div>` : `<span style="font-size:0.75rem; color:var(--ink-faint);">${u.role === 'master' ? 'Master account' : 'View only'}</span>`}
-      </td>
-    </tr>
-  `).join('');
+  if (admSnap)  document.getElementById('statManagers').textContent  = admSnap.size;
+  if (bikeSnap) document.getElementById('statBikes').textContent     = bikeSnap.size;
+  if (inqSnap)  document.getElementById('statInquiries').textContent = inqSnap.size;
+  if (bookSnap) document.getElementById('statBookings').textContent  = bookSnap.size;
 }
 
-function wirePwMeter(inputId, fillId, labelId, checklistId) {
-  const input = $(inputId);
-  input.addEventListener('input', () => {
-    const pw = input.value;
-    const score = passwordScore(pw);
-    const meta = strengthMeta(score);
-    $(fillId).style.width = pw ? meta.pct + '%' : '0%';
-    $(fillId).style.background = meta.color;
-    if ($(labelId)) { $(labelId).textContent = pw ? meta.label + ' password' : ''; $(labelId).style.color = meta.color; }
-    if (checklistId) {
-      const checks = passwordChecks(pw);
-      document.querySelectorAll(`#${checklistId} li`).forEach(li => li.classList.toggle('ok', !!checks[li.dataset.k]));
+async function loadRecentInquiries() {
+  const el = document.getElementById('recentInquiries');
+  try {
+    const snap = await db.collection('inquiries').orderBy('createdAt','desc').limit(5).get();
+    if (snap.empty) {
+      el.innerHTML = '<p class="text-sm text-gray-400">No inquiries yet.</p>';
+      return;
     }
-  });
+    el.innerHTML = `
+      <table class="data-table text-sm">
+        <thead><tr><th>Name</th><th>Phone</th><th>Model</th><th>Date</th></tr></thead>
+        <tbody>
+          ${snap.docs.map(d => {
+            const r = d.data();
+            return `<tr>
+              <td class="font-medium">${esc(r.name||'–')}</td>
+              <td>${esc(r.phone||r.mobile||'–')}</td>
+              <td>${esc(r.model||r.bikeModel||'–')}</td>
+              <td class="text-xs text-gray-400">${fmtDate(r.createdAt)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+  } catch(e) {
+    el.innerHTML = '<p class="text-sm text-gray-400">Could not load inquiries. Check Firestore rules.</p>';
+  }
 }
-wirePwMeter('f-password', 'f-pw-fill', 'f-pw-label', null);
-wirePwMeter('p-newPassword', 'p-pw-fill', 'p-pw-label', 'p-pw-checklist');
 
-window.createUser = async function () {
-  if (!isMaster) return;
-  const errEl = $('createError'); errEl.style.display = 'none';
-  function showErr(msg) { errEl.textContent = msg; errEl.style.display = ''; }
+/* ══ USERS (Firestore "admins" collection) ═══════════════════════ */
+async function loadUsers() {
+  const tbody = document.getElementById('userTbody');
+  tbody.innerHTML = skeletonRows(6, 6);
+  try {
+    const snap = await db.collection('admins').orderBy('createdAt','desc').get();
+    document.getElementById('userCount').textContent = snap.size + ' account' + (snap.size !== 1 ? 's' : '');
 
-  const name     = $('f-name').value.trim();
-  const email    = $('f-email').value.trim().toLowerCase();
-  const username = $('f-username').value.trim().toLowerCase();
-  const role     = $('f-role').value;
-  const password = $('f-password').value;
+    if (snap.empty) {
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-sm text-gray-400">No managers found.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = snap.docs.map(d => {
+      const u = d.data();
+      const uid = d.id;
+      const isMe = uid === currentUser.uid;
+      const isMasterRow = u.role === 'master';
+      const canAct = isMaster && !isMasterRow;
+      return `<tr>
+        <td>
+          <div class="flex items-center gap-2">
+            <div class="avatar" style="width:28px;height:28px;font-size:0.7rem;border-radius:6px;">${(u.name||'?').charAt(0).toUpperCase()}</div>
+            <span class="font-medium text-gray-800">${esc(u.name||'–')}${isMe ? ' <span class="text-xs text-blue-500">(you)</span>':''}</span>
+          </div>
+        </td>
+        <td class="text-gray-500 text-xs">${esc(u.email||'–')}</td>
+        <td><span class="badge badge-${u.role}">${u.role}</span></td>
+        <td><span class="badge ${u.status==='active'?'badge-active':'badge-inactive'}">${u.status||'–'}</span></td>
+        <td class="text-xs text-gray-400">${fmtDate(u.createdAt)}</td>
+        <td>
+          ${canAct ? `
+          <div class="flex gap-1.5 flex-wrap">
+            ${u.status==='active'
+              ? `<button onclick="toggleUserStatus('${uid}','inactive')" class="btn btn-warn btn-sm">Deactivate</button>`
+              : `<button onclick="toggleUserStatus('${uid}','active')" class="btn btn-ok btn-sm">Activate</button>`}
+            <button onclick="confirmDeleteUser('${uid}','${esc(u.name||'')}','${esc(u.email||'')}')" class="btn btn-danger btn-sm">Delete</button>
+          </div>` : `<span class="text-xs text-gray-300">${isMasterRow?'Master (protected)':'–'}</span>`}
+        </td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-sm text-red-400">Error loading: ${e.message}</td></tr>`;
+  }
+}
 
-  if (!name || !email || !username || !password) return showErr('All fields are required.');
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showErr('Enter a valid email address.');
-  if (!/^[a-z0-9_]{3,20}$/.test(username)) return showErr('Username: 3–20 characters, letters/numbers/underscore only.');
-  if (!isStrongPassword(password)) return showErr('Password is not strong enough — needs upper, lower, number, and symbol.');
+/* Create / edit user modal */
+let editingUid = null;
+function openUserModal(uid, data) {
+  editingUid = uid || null;
+  document.getElementById('userModalTitle').textContent = uid ? 'Edit Manager' : 'Create Manager Account';
+  document.getElementById('um-save-btn').textContent    = uid ? 'Save Changes' : 'Create Account';
+  document.getElementById('um-pass-wrap').style.display = uid ? 'none' : '';
+  document.getElementById('userModalError').classList.remove('show');
+  if (data) {
+    document.getElementById('um-name').value  = data.name || '';
+    document.getElementById('um-email').value = data.email || '';
+    document.getElementById('um-role').value  = data.role || 'staff';
+  } else {
+    document.getElementById('um-name').value = document.getElementById('um-email').value = document.getElementById('um-password').value = '';
+    document.getElementById('um-role').value = 'owner';
+  }
+  document.getElementById('userModal').classList.add('open');
+}
+function closeUserModal() { document.getElementById('userModal').classList.remove('open'); }
 
-  const dupEmail = await getDocs(query(collection(db, 'users'), where('email', '==', email), limit(1)));
-  if (!dupEmail.empty) return showErr('An account with this email already exists.');
-  const dupUser = await getDocs(query(collection(db, 'users'), where('username', '==', username), limit(1)));
-  if (!dupUser.empty) return showErr('This username is already taken.');
+async function saveUser() {
+  const errEl  = document.getElementById('userModalError');
+  const name   = document.getElementById('um-name').value.trim();
+  const email  = document.getElementById('um-email').value.trim().toLowerCase();
+  const role   = document.getElementById('um-role').value;
+  const pass   = document.getElementById('um-password').value;
+  const saveBtn = document.getElementById('um-save-btn');
+
+  function showModalErr(msg) { errEl.textContent = msg; errEl.classList.add('show'); }
+  errEl.classList.remove('show');
+
+  if (!name || !email) return showModalErr('Name and email are required.');
+  if (!editingUid && pass.length < 8) return showModalErr('Password must be at least 8 characters.');
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving…';
 
   try {
-    const secondaryApp = initializeApp(firebaseConfig, 'Secondary_' + Date.now());
-    const secondaryAuth = getAuth(secondaryApp);
-    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-    await updateProfile(cred.user, { displayName: name });
-    await setDoc(doc(db, 'users', cred.user.uid), {
-      uid: cred.user.uid, name, email, username, role, status: 'active', photoURL: '', createdAt: serverTimestamp(),
-    });
-    await signOut(secondaryAuth);
-    await deleteApp(secondaryApp);
+    if (editingUid) {
+      // Update Firestore only (password change requires separate Firebase Admin SDK call)
+      await db.collection('admins').doc(editingUid).update({ name, role, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+      showToast('✅ Manager updated.');
+    } else {
+      // Create Firebase Auth user via Firebase REST API
+      // NOTE: creating users from the frontend requires Firebase Admin SDK on a backend.
+      // Here we use the Firebase Auth REST API as a workaround for self-hosted setups.
+      // In production, use a Cloud Function.
+      const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=REPLACE_WITH_YOUR_NEW_ROTATED_API_KEY`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pass, returnSecureToken: false })
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error.message);
 
-    ['f-name', 'f-email', 'f-username', 'f-password'].forEach(id => $(id).value = '');
-    $('f-role').value = 'owner';
-    $('f-pw-fill').style.width = '0%'; $('f-pw-label').textContent = '';
-    showToast(`Manager "${name}" created as ${role}.`);
-  } catch (e) {
-    showErr(friendlyError(e));
+      const newUid = json.localId;
+      await db.collection('admins').doc(newUid).set({
+        name, email, role, status: 'active',
+        createdBy: currentUser.uid,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      showToast(`✅ Manager "${name}" created as ${role}.`);
+    }
+    closeUserModal();
+    loadUsers();
+    loadDashboardStats();
+  } catch(e) {
+    let msg = e.message;
+    if (msg.includes('EMAIL_EXISTS')) msg = 'This email is already registered in Firebase Auth.';
+    if (msg.includes('WEAK_PASSWORD')) msg = 'Password is too weak. Use at least 8 characters.';
+    showModalErr(msg);
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = editingUid ? 'Save Changes' : 'Create Account';
   }
-};
+}
 
-window.toggleStatus = async function (uid, status) {
-  if (!isMaster) return;
-  try { await updateDoc(doc(db, 'users', uid), { status }); showToast(`Account ${status === 'active' ? 'activated' : 'deactivated'}.`); }
-  catch (e) { showToast(friendlyError(e), true); }
-};
+async function toggleUserStatus(uid, status) {
+  await db.collection('admins').doc(uid).update({ status });
+  showToast(`Account ${status === 'active' ? 'activated' : 'deactivated'}.`);
+  loadUsers();
+}
 
-window.confirmDeleteUser = function (uid, name) {
-  openConfirm('Delete Account', `Permanently remove "${name}" from Firestore? This cannot be undone. Note: this does not delete their Firebase Authentication login — remove that separately in the Firebase Console if needed.`, async () => {
-    try { await deleteDoc(doc(db, 'users', uid)); showToast(`"${name}" removed.`); }
-    catch (e) { showToast(friendlyError(e), true); }
-  });
-};
+let pendingDeleteUid = null;
+function confirmDeleteUser(uid, name, email) {
+  pendingDeleteUid = uid;
+  document.getElementById('confirmTitle').textContent = 'Delete Manager Account';
+  document.getElementById('confirmMsg').textContent = `Permanently delete "${name}" (${email})? This cannot be undone. Their Firestore record will be removed (Firebase Auth account must be deleted separately from Firebase Console).`;
+  document.getElementById('confirmOk').onclick = executeDeleteUser;
+  document.getElementById('confirmModal').classList.add('open');
+}
+async function executeDeleteUser() {
+  if (!pendingDeleteUid) return;
+  try {
+    await db.collection('admins').doc(pendingDeleteUid).delete();
+    showToast('🗑 Manager record deleted from Firestore.');
+    closeConfirm();
+    loadUsers();
+    loadDashboardStats();
+  } catch(e) {
+    showToast('Error: ' + e.message);
+  }
+}
 
-/* ════════════════════════════════════════════════════════════════
-   BIKE PRICE LIST — model groups with variant rows, auto S.N.
-   ════════════════════════════════════════════════════════════════ */
-let variantBlockCounter = 0;
+/* ══ BIKES (Firestore "bikes" collection) ════════════════════════ */
 let editingBikeId = null;
 
-function renderBikes() {
-  const term = ($('bikeSearch').value || '').trim().toLowerCase();
-  const tbody = $('bikeTbody');
-  const filtered = term ? bikesCache.filter(b => (b.model || '').toLowerCase().includes(term)) : bikesCache;
-
-  if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:40px 20px; font-size:0.845rem; color:var(--ink-faint);">
-      ${bikesCache.length ? 'No models match your search.' : (isMaster || isOwner ? 'No models yet. Click "Add Model" to create one.' : 'No models added yet.')}
-    </td></tr>`;
-    return;
+async function loadBikes() {
+  const tbody = document.getElementById('bikeTbody');
+  tbody.innerHTML = skeletonRows(5, 5);
+  if (isOwnerOrAbove) {
+    document.getElementById('addBikeBtn').classList.remove('hidden');
+    document.getElementById('bikeActionsHead').textContent = 'Actions';
   }
-
-  let sn = 0;
-  let rows = '';
-  filtered.forEach(b => {
-    const variants = b.variants && b.variants.length ? b.variants : [{}];
-    variants.forEach((v, vi) => {
-      sn += 1;
-      const isFirst = vi === 0;
-      rows += `<tr>
-        <td class="${isFirst ? 'group-start' : ''}">${sn}</td>
-        ${isFirst ? `<td class="group-start" rowspan="${variants.length}"><strong style="color:var(--ink);">${esc(b.model)}</strong></td>` : ''}
-        <td class="${isFirst ? 'group-start' : ''}">${formatNPR(v.price)}</td>
-        <td class="${isFirst ? 'group-start' : ''}">${formatNPR(v.firstPartyInsurance)}</td>
-        <td class="${isFirst ? 'group-start' : ''}">${formatNPR(v.financeInsurance)}</td>
-        <td class="${isFirst ? 'group-start' : ''}">${formatNPR(v.thirdPartyInsurance)}</td>
-        <td class="${isFirst ? 'group-start' : ''}">${v.imageUrl ? `<a href="${esc(v.imageUrl)}" target="_blank" rel="noopener"><img class="table-thumb" src="${esc(v.imageUrl)}" alt="" /></a>` : '—'}</td>
-        ${isFirst ? `<td class="group-start" rowspan="${variants.length}">
-          ${(isMaster || isOwner) ? `
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="btn btn-ghost btn-xs" onclick="openBikeModal('${b.id}')">Edit</button>
-            <button class="btn btn-danger btn-xs" onclick="confirmDeleteBike('${b.id}','${esc(b.model)}')">Delete</button>
-          </div>` : `<span style="font-size:0.75rem; color:var(--ink-faint);">View only</span>`}
-        </td>` : ''}
-      </tr>`;
-    });
-  });
-  tbody.innerHTML = rows;
-}
-$('bikeSearch').addEventListener('input', renderBikes);
-
-window.exportBikesCSV = function () {
-  const header = ['S.N.', 'Model', 'Price', '1st Party Insurance', 'Finance Insurance', '3rd Party Insurance', 'Image URL'];
-  const lines = [header.join(',')];
-  let sn = 0;
-  bikesCache.forEach(b => {
-    (b.variants || []).forEach(v => {
-      sn += 1;
-      lines.push([sn, csvSafe(b.model), v.price || 0, v.firstPartyInsurance || 0, v.financeInsurance || 0, v.thirdPartyInsurance || 0, csvSafe(v.imageUrl || '')].join(','));
-    });
-  });
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'bajaj-price-list.csv'; a.click();
-  URL.revokeObjectURL(url);
-};
-function csvSafe(s) { return `"${String(s).replace(/"/g, '""')}"`; }
-
-/* Bike modal */
-window.openBikeModal = function (bikeId) {
-  if (!isMaster && !isOwner) return;
-  editingBikeId = bikeId || null;
-  $('bikeModalError').style.display = 'none';
-  $('variantContainer').innerHTML = '';
-  variantBlockCounter = 0;
-
-  if (bikeId) {
-    const bike = bikesCache.find(b => b.id === bikeId);
-    $('bikeModalTitle').textContent = 'Edit Bike Model';
-    $('bm-model').value = bike ? bike.model : '';
-    (bike?.variants?.length ? bike.variants : [{}]).forEach(v => addVariantBlock(v));
-  } else {
-    $('bikeModalTitle').textContent = 'Add Bike Model';
-    $('bm-model').value = '';
-    addVariantBlock();
-  }
-  $('bikeModal').classList.add('open');
-};
-window.closeBikeModal = function () { $('bikeModal').classList.remove('open'); editingBikeId = null; };
-$('bikeModal').addEventListener('click', e => { if (e.target === $('bikeModal')) closeBikeModal(); });
-
-window.addVariantBlock = function (prefill) {
-  variantBlockCounter += 1;
-  const id = 'vb_' + variantBlockCounter + '_' + Date.now();
-  const wrap = document.createElement('div');
-  wrap.className = 'variant-block';
-  wrap.id = id;
-  const p = prefill || {};
-  wrap.innerHTML = `
-    <div class="variant-block-head">
-      <span class="variant-block-title">Variant</span>
-      <button type="button" class="variant-remove-btn" onclick="removeVariantBlock('${id}')" title="Remove variant">×</button>
-    </div>
-    <div class="variant-grid">
-      <div>
-        <label class="field-label">Price (NPR)</label>
-        <input type="number" min="0" class="field-input v-price" placeholder="e.g. 215000" value="${p.price ?? ''}" />
-      </div>
-      <div>
-        <label class="field-label">1st Party Insurance (NPR)</label>
-        <input type="number" min="0" class="field-input v-fpi" placeholder="e.g. 8500" value="${p.firstPartyInsurance ?? ''}" />
-      </div>
-      <div>
-        <label class="field-label">Finance Insurance (NPR)</label>
-        <input type="number" min="0" class="field-input v-fin" placeholder="e.g. 6000" value="${p.financeInsurance ?? ''}" />
-      </div>
-      <div>
-        <label class="field-label">3rd Party Insurance (NPR)</label>
-        <input type="number" min="0" class="field-input v-tpi" placeholder="e.g. 3200" value="${p.thirdPartyInsurance ?? ''}" />
-      </div>
-      <div class="full">
-        <label class="field-label">Image URL</label>
-        <div class="img-row">
-          <img class="img-preview v-img-preview" src="${esc(p.imageUrl || '')}" style="${p.imageUrl ? '' : 'display:none;'}" alt="" />
-          <input type="text" class="field-input v-img" placeholder="https://… or upload →" value="${esc(p.imageUrl || '')}" />
-          <button type="button" class="btn btn-ghost btn-sm img-upload-btn" onclick="this.nextElementSibling.click()">Upload</button>
-          <input type="file" accept="image/*" style="display:none;" onchange="handleVariantImageUpload(event,'${id}')" />
-        </div>
-      </div>
-    </div>
-  `;
-  $('variantContainer').appendChild(wrap);
-  const imgInput = wrap.querySelector('.v-img');
-  const imgPreview = wrap.querySelector('.v-img-preview');
-  imgInput.addEventListener('input', () => {
-    if (imgInput.value) { imgPreview.src = imgInput.value; imgPreview.style.display = ''; }
-    else imgPreview.style.display = 'none';
-  });
-};
-
-window.removeVariantBlock = function (id) {
-  const container = $('variantContainer');
-  if (container.children.length <= 1) { showToast('A model needs at least one variant.', true); return; }
-  document.getElementById(id)?.remove();
-};
-
-window.handleVariantImageUpload = async function (event, blockId) {
-  const file = event.target.files[0];
-  if (!file) return;
-  const block = document.getElementById(blockId);
-  const btn = block.querySelector('.img-upload-btn');
-  const imgInput = block.querySelector('.v-img');
-  const imgPreview = block.querySelector('.v-img-preview');
-  const originalLabel = btn.textContent;
-  btn.textContent = 'Uploading…'; btn.disabled = true;
   try {
-    const path = `bikes/${Date.now()}_${Math.random().toString(36).slice(2)}_${file.name}`;
-    const r = ref(storage, path);
-    await uploadBytes(r, file);
-    const url = await getDownloadURL(r);
-    imgInput.value = url;
-    imgPreview.src = url; imgPreview.style.display = '';
-    showToast('Image uploaded.');
-  } catch (e) {
-    showToast('Upload failed: ' + friendlyError(e), true);
-  } finally {
-    btn.textContent = originalLabel; btn.disabled = false;
-  }
-};
-
-window.saveBikeModel = async function () {
-  const errEl = $('bikeModalError'); errEl.style.display = 'none';
-  function showErr(msg) { errEl.textContent = msg; errEl.style.display = ''; }
-
-  const model = $('bm-model').value.trim();
-  if (!model) return showErr('Model name is required.');
-
-  const blocks = Array.from($('variantContainer').children);
-  if (!blocks.length) return showErr('Add at least one variant.');
-
-  const variants = [];
-  for (const block of blocks) {
-    const price = block.querySelector('.v-price').value;
-    const fpi   = block.querySelector('.v-fpi').value;
-    const fin   = block.querySelector('.v-fin').value;
-    const tpi   = block.querySelector('.v-tpi').value;
-    const img   = block.querySelector('.v-img').value.trim();
-    if (price === '' || fpi === '' || fin === '' || tpi === '' || !img) {
-      return showErr('Every variant needs price, all three insurance amounts, and an image.');
+    const snap = await db.collection('bikes').orderBy('model','asc').get();
+    document.getElementById('bikeCount').textContent = snap.size + ' model' + (snap.size !== 1 ? 's' : '');
+    if (snap.empty) {
+      tbody.innerHTML = `<tr><td colspan="5" class="text-center py-10 text-sm text-gray-400">No bike models yet.${isOwnerOrAbove?' Click "Add Model" to start.':''}</td></tr>`;
+      return;
     }
-    variants.push({
-      price: Number(price), firstPartyInsurance: Number(fpi),
-      financeInsurance: Number(fin), thirdPartyInsurance: Number(tpi), imageUrl: img,
-    });
+    tbody.innerHTML = snap.docs.map(d => {
+      const b = d.data();
+      const statusColors = { available:'badge-active', limited:'badge-owner', on_order:'badge-warn', unavailable:'badge-inactive' };
+      const statusLabels = { available:'Available', limited:'Limited', on_order:'On Order', unavailable:'Unavailable' };
+      return `<tr>
+        <td>
+          <div class="flex items-center gap-2">
+            ${b.image ? `<img src="${esc(b.image)}" alt="" style="width:36px;height:28px;object-fit:cover;border-radius:5px;border:1px solid #e2e8f0;" onerror="this.style.display='none'">` : ''}
+            <div>
+              <p class="font-medium text-gray-800">${esc(b.model||'–')}</p>
+              <p class="text-xs text-gray-400">${esc(b.desc||b.description||'')}</p>
+            </div>
+          </div>
+        </td>
+        <td><span class="text-xs text-gray-500 capitalize">${esc(b.category||'–')}</span></td>
+        <td class="font-medium" style="color:#005EA6;">NPR ${Number(b.price||0).toLocaleString('en-IN')}</td>
+        <td><span class="badge ${statusColors[b.status]||'badge-staff'}">${statusLabels[b.status]||esc(b.status||'–')}</span></td>
+        <td>
+          ${isOwnerOrAbove ? `
+          <div class="flex gap-1.5">
+            <button onclick="openBikeEdit('${d.id}')" class="btn btn-ghost btn-sm">Edit</button>
+            ${isMaster?`<button onclick="confirmDeleteBike('${d.id}','${esc(b.model||'')}' )" class="btn btn-danger btn-sm">Delete</button>`:''}
+          </div>` : '–'}
+        </td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center py-10 text-sm text-red-400">Error: ${e.message}</td></tr>`;
   }
+}
 
-  const btn = $('bikeSaveBtn');
+function openBikeModal() {
+  editingBikeId = null;
+  document.getElementById('bikeFormTitle').textContent = 'Add Bike Model';
+  document.getElementById('bf-save').textContent = 'Save Model';
+  ['bf-model','bf-price','bf-desc','bf-image'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('bf-category').value = 'commuter';
+  document.getElementById('bf-status').value = 'available';
+  document.getElementById('bikeFormError').classList.remove('show');
+  document.getElementById('bikeFormCard').classList.remove('hidden');
+  document.getElementById('bikeFormCard').scrollIntoView({ behavior:'smooth' });
+}
+async function openBikeEdit(id) {
+  const snap = await db.collection('bikes').doc(id).get();
+  if (!snap.exists) return;
+  const b = snap.data();
+  editingBikeId = id;
+  document.getElementById('bikeFormTitle').textContent = 'Edit Bike Model';
+  document.getElementById('bf-save').textContent = 'Update Model';
+  document.getElementById('bf-model').value    = b.model || '';
+  document.getElementById('bf-price').value    = b.price || '';
+  document.getElementById('bf-category').value = b.category || 'commuter';
+  document.getElementById('bf-status').value   = b.status || 'available';
+  document.getElementById('bf-desc').value     = b.desc || b.description || '';
+  document.getElementById('bf-image').value    = b.image || '';
+  document.getElementById('bikeFormError').classList.remove('show');
+  document.getElementById('bikeFormCard').classList.remove('hidden');
+  document.getElementById('bikeFormCard').scrollIntoView({ behavior:'smooth' });
+}
+function closeBikeForm() { document.getElementById('bikeFormCard').classList.add('hidden'); editingBikeId = null; }
+
+async function saveBike() {
+  const errEl = document.getElementById('bikeFormError');
+  const model    = document.getElementById('bf-model').value.trim();
+  const price    = parseFloat(document.getElementById('bf-price').value);
+  const category = document.getElementById('bf-category').value;
+  const status   = document.getElementById('bf-status').value;
+  const desc     = document.getElementById('bf-desc').value.trim();
+  const image    = document.getElementById('bf-image').value.trim();
+  const btn      = document.getElementById('bf-save');
+
+  errEl.classList.remove('show');
+  if (!model) { errEl.textContent = 'Model name is required.'; errEl.classList.add('show'); return; }
+  if (!price || price < 0) { errEl.textContent = 'Enter a valid price.'; errEl.classList.add('show'); return; }
+
   btn.disabled = true; btn.textContent = 'Saving…';
+  const data = { model, price, category, status, desc, image, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: currentUser.uid };
+
   try {
     if (editingBikeId) {
-      await updateDoc(doc(db, 'bikes', editingBikeId), { model, variants, updatedAt: serverTimestamp() });
-      showToast(`"${model}" updated.`);
+      await db.collection('bikes').doc(editingBikeId).update(data);
+      showToast('✅ Bike model updated.');
     } else {
-      await addDoc(collection(db, 'bikes'), { model, variants, createdAt: serverTimestamp(), createdBy: me.uid });
-      showToast(`"${model}" added.`);
+      data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      data.createdBy = currentUser.uid;
+      await db.collection('bikes').add(data);
+      showToast(`✅ "${model}" added to price list.`);
     }
-    closeBikeModal();
-  } catch (e) {
-    showErr(friendlyError(e));
+    closeBikeForm();
+    loadBikes();
+    loadDashboardStats();
+  } catch(e) {
+    errEl.textContent = 'Save failed: ' + e.message; errEl.classList.add('show');
   } finally {
-    btn.disabled = false; btn.textContent = 'Save Model';
+    btn.disabled = false; btn.textContent = editingBikeId ? 'Update Model' : 'Save Model';
   }
-};
-
-window.confirmDeleteBike = function (id, name) {
-  openConfirm('Delete Model', `Permanently delete "${name}" and all its variants? This cannot be undone.`, async () => {
-    try { await deleteDoc(doc(db, 'bikes', id)); showToast(`"${name}" deleted.`); }
-    catch (e) { showToast(friendlyError(e), true); }
-  });
-};
-
-/* ════════════════════════════════════════════════════════════════
-   MY PROFILE
-   ════════════════════════════════════════════════════════════════ */
-function prefillProfileForm() {
-  const initials = (me.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-  setAvatarEl($('profileAvatarLg'), me.photoURL, initials);
-  $('p-photoUrl').value = me.photoURL || '';
-  $('p-name').value = me.name || '';
-  $('p-username').value = me.username || '';
-  $('p-currentEmail').value = me.email || '';
 }
 
-window.handleAvatarUpload = async function (event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  $('avatarUploadStatus').textContent = 'Uploading…';
-  try {
-    const path = `avatars/${me.uid}/${Date.now()}_${file.name}`;
-    const r = ref(storage, path);
-    await uploadBytes(r, file);
-    const url = await getDownloadURL(r);
-    await applyPhotoUpdate(url);
-    $('avatarUploadStatus').textContent = 'JPG/PNG, up to 5MB.';
-    showToast('Profile photo updated.');
-  } catch (e) {
-    $('avatarUploadStatus').textContent = 'JPG/PNG, up to 5MB.';
-    showToast('Upload failed: ' + friendlyError(e), true);
-  }
-};
-
-window.savePhotoUrl = async function () {
-  const url = $('p-photoUrl').value.trim();
-  try { await applyPhotoUpdate(url); showToast('Profile photo updated.'); }
-  catch (e) { showToast(friendlyError(e), true); }
-};
-
-async function applyPhotoUpdate(url) {
-  await updateProfile(firebaseUser, { photoURL: url });
-  await updateDoc(doc(db, 'users', me.uid), { photoURL: url });
-  me.photoURL = url;
-  const initials = (me.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-  [$('sbAvatar'), $('tbAvatar'), $('profileAvatarLg')].forEach(el => setAvatarEl(el, url, initials));
-  $('p-photoUrl').value = url;
+let pendingDeleteBikeId = null;
+function confirmDeleteBike(id, name) {
+  pendingDeleteBikeId = id;
+  document.getElementById('confirmTitle').textContent = 'Delete Bike Model';
+  document.getElementById('confirmMsg').textContent   = `Remove "${name}" from the price list? This cannot be undone.`;
+  document.getElementById('confirmOk').onclick = executeDeleteBike;
+  document.getElementById('confirmModal').classList.add('open');
+}
+async function executeDeleteBike() {
+  if (!pendingDeleteBikeId) return;
+  await db.collection('bikes').doc(pendingDeleteBikeId).delete();
+  showToast('🗑 Bike model deleted.');
+  closeConfirm(); loadBikes(); loadDashboardStats();
 }
 
-window.saveProfileName = async function () {
-  const errEl = $('profileNameError'), okEl = $('profileNameSuccess');
-  errEl.style.display = 'none'; okEl.style.display = 'none';
-  const name = $('p-name').value.trim();
-  if (!name) { errEl.textContent = 'Name is required.'; errEl.style.display = ''; return; }
+/* ══ INVENTORY ════════════════════════════════════════════════════ */
+async function loadInventory() {
+  const tbody = document.getElementById('invTbody');
+  tbody.innerHTML = skeletonRows(6, 6);
   try {
-    await updateProfile(firebaseUser, { displayName: name });
-    await updateDoc(doc(db, 'users', me.uid), { name });
-    me.name = name;
-    $('sbName').textContent = name;
-    $('welcomeName').textContent = name.split(' ')[0];
-    okEl.textContent = 'Name updated.'; okEl.style.display = '';
-  } catch (e) { errEl.textContent = friendlyError(e); errEl.style.display = ''; }
-};
-
-window.saveProfileUsername = async function () {
-  const errEl = $('profileUsernameError'), okEl = $('profileUsernameSuccess');
-  errEl.style.display = 'none'; okEl.style.display = 'none';
-  const username = $('p-username').value.trim().toLowerCase();
-  if (!/^[a-z0-9_]{3,20}$/.test(username)) { errEl.textContent = 'Username: 3–20 characters, letters/numbers/underscore only.'; errEl.style.display = ''; return; }
-  try {
-    const dup = await getDocs(query(collection(db, 'users'), where('username', '==', username), limit(1)));
-    if (!dup.empty && dup.docs[0].id !== me.uid) { errEl.textContent = 'This username is already taken.'; errEl.style.display = ''; return; }
-    await updateDoc(doc(db, 'users', me.uid), { username });
-    me.username = username;
-    okEl.textContent = 'Username updated.'; okEl.style.display = '';
-  } catch (e) { errEl.textContent = friendlyError(e); errEl.style.display = ''; }
-};
-
-/* Reauth modal — used before email/password changes */
-let pendingReauthAction = null;
-function requireReauth(action) {
-  pendingReauthAction = action;
-  $('reauthError').style.display = 'none';
-  $('reauthPassword').value = '';
-  $('reauthModal').classList.add('open');
+    const snap = await db.collection('inventory').orderBy('dateIn','desc').get();
+    document.getElementById('invCount').textContent = snap.size + ' item' + (snap.size !== 1 ? 's' : '');
+    if (snap.empty) { tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-sm text-gray-400">No inventory records yet.</td></tr>`; return; }
+    const statusColors = { in_stock:'badge-active', sold:'badge-inactive', reserved:'badge-owner', transit:'badge-warn' };
+    tbody.innerHTML = snap.docs.map(d => {
+      const v = d.data();
+      return `<tr>
+        <td class="font-medium text-gray-800">${esc(v.model||'–')}</td>
+        <td>${esc(v.color||'–')}</td>
+        <td class="font-mono text-xs">${esc(v.chassisNo||v.chassis||'–')}</td>
+        <td class="font-mono text-xs">${esc(v.engineNo||v.engine||'–')}</td>
+        <td><span class="badge ${statusColors[v.status]||'badge-staff'}">${esc(v.status||'–')}</span></td>
+        <td class="text-xs text-gray-400">${fmtDate(v.dateIn||v.createdAt)}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) { tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-sm text-red-400">Error: ${e.message}</td></tr>`; }
 }
-window.closeReauth = function () { $('reauthModal').classList.remove('open'); pendingReauthAction = null; };
-$('reauthModal').addEventListener('click', e => { if (e.target === $('reauthModal')) closeReauth(); });
-$('reauthOkBtn').addEventListener('click', async () => {
-  const pw = $('reauthPassword').value;
-  const errEl = $('reauthError');
-  if (!pw) { errEl.textContent = 'Enter your current password.'; errEl.style.display = ''; return; }
+
+/* ══ INQUIRIES ════════════════════════════════════════════════════ */
+async function loadInquiries() {
+  const tbody = document.getElementById('inqTbody');
+  tbody.innerHTML = skeletonRows(6, 6);
   try {
-    const cred = EmailAuthProvider.credential(firebaseUser.email, pw);
-    await reauthenticateWithCredential(firebaseUser, cred);
-    closeReauth();
-    if (pendingReauthAction) await pendingReauthAction();
-  } catch (e) {
-    errEl.textContent = friendlyError(e);
-    errEl.style.display = '';
-  }
-});
+    const snap = await db.collection('inquiries').orderBy('createdAt','desc').get();
+    document.getElementById('inqCount').textContent = snap.size + ' entr' + (snap.size !== 1 ? 'ies' : 'y');
+    if (snap.empty) { tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-sm text-gray-400">No inquiries yet.</td></tr>`; return; }
+    tbody.innerHTML = snap.docs.map(d => {
+      const r = d.data();
+      const statusMap = { new:'badge-master', read:'badge-owner', replied:'badge-active', closed:'badge-staff' };
+      return `<tr>
+        <td class="font-medium text-gray-800">${esc(r.name||'–')}</td>
+        <td>${esc(r.phone||r.mobile||'–')}</td>
+        <td>${esc(r.model||r.bikeModel||'–')}</td>
+        <td class="text-xs text-gray-500" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(r.message||'')}">${esc(r.message||'–')}</td>
+        <td class="text-xs text-gray-400">${fmtDate(r.createdAt)}</td>
+        <td><span class="badge ${statusMap[r.status]||'badge-staff'}">${r.status||'new'}</span></td>
+      </tr>`;
+    }).join('');
+  } catch(e) { tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-sm text-red-400">Error: ${e.message}</td></tr>`; }
+}
 
-window.changeEmail = function () {
-  const errEl = $('profileEmailError'), okEl = $('profileEmailSuccess');
-  errEl.style.display = 'none'; okEl.style.display = 'none';
-  const newEmail = $('p-newEmail').value.trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) { errEl.textContent = 'Enter a valid email address.'; errEl.style.display = ''; return; }
-  requireReauth(async () => {
-    try {
-      await verifyBeforeUpdateEmail(firebaseUser, newEmail);
-      okEl.textContent = `Verification link sent to ${newEmail}. Your sign-in email will update once you confirm it.`;
-      okEl.style.display = '';
-      $('p-newEmail').value = '';
-    } catch (e) { errEl.textContent = friendlyError(e); errEl.style.display = ''; }
-  });
-};
+/* ══ BOOKINGS ═════════════════════════════════════════════════════ */
+async function loadBookings() {
+  const tbody = document.getElementById('bookTbody');
+  tbody.innerHTML = skeletonRows(6, 6);
+  try {
+    const snap = await db.collection('bookings').orderBy('createdAt','desc').get();
+    document.getElementById('bookCount').textContent = snap.size + ' booking' + (snap.size !== 1 ? 's' : '');
+    if (snap.empty) { tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-sm text-gray-400">No bookings yet.</td></tr>`; return; }
+    const statusMap = { pending:'badge-master', confirmed:'badge-owner', delivered:'badge-active', cancelled:'badge-inactive' };
+    tbody.innerHTML = snap.docs.map(d => {
+      const b = d.data();
+      return `<tr>
+        <td class="font-medium text-gray-800">${esc(b.customerName||b.name||'–')}</td>
+        <td>${esc(b.phone||b.mobile||'–')}</td>
+        <td>${esc(b.model||b.bikeModel||'–')}</td>
+        <td class="font-medium" style="color:#005EA6;">NPR ${Number(b.amount||b.bookingAmount||0).toLocaleString('en-IN')}</td>
+        <td class="text-xs text-gray-400">${fmtDate(b.createdAt)}</td>
+        <td><span class="badge ${statusMap[b.status]||'badge-staff'}">${b.status||'pending'}</span></td>
+      </tr>`;
+    }).join('');
+  } catch(e) { tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-sm text-red-400">Error: ${e.message}</td></tr>`; }
+}
 
-window.changePassword = function () {
-  const errEl = $('profilePwError'), okEl = $('profilePwSuccess');
-  errEl.style.display = 'none'; okEl.style.display = 'none';
-  const pw1 = $('p-newPassword').value, pw2 = $('p-newPassword2').value;
-  if (!isStrongPassword(pw1)) { errEl.textContent = 'Password is not strong enough — check the checklist.'; errEl.style.display = ''; return; }
-  if (pw1 !== pw2) { errEl.textContent = 'Passwords do not match.'; errEl.style.display = ''; return; }
-  requireReauth(async () => {
-    try {
-      await updatePassword(firebaseUser, pw1);
-      okEl.textContent = 'Password updated.'; okEl.style.display = '';
-      $('p-newPassword').value = ''; $('p-newPassword2').value = '';
-      $('p-pw-fill').style.width = '0%'; $('p-pw-label').textContent = '';
-    } catch (e) { errEl.textContent = friendlyError(e); errEl.style.display = ''; }
-  });
-};
+/* ══ SIDEBAR MOBILE ═══════════════════════════════════════════════ */
+function openSidebar()  { document.getElementById('sidebar').classList.add('open');  document.getElementById('sbOverlay').classList.add('open'); }
+function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sbOverlay').classList.remove('open'); }
 
-/* ════════════════════════════════════════════════════════════════
-   ERROR FORMATTING
-   ════════════════════════════════════════════════════════════════ */
-function friendlyError(e) {
-  const code = e && e.code;
-  switch (code) {
-    case 'auth/wrong-password':
-    case 'auth/invalid-credential': return 'Incorrect password.';
-    case 'auth/requires-recent-login': return 'Please re-enter your password to confirm this change.';
-    case 'auth/email-already-in-use': return 'That email is already in use by another account.';
-    case 'auth/weak-password': return 'Password is too weak.';
-    case 'auth/network-request-failed': return 'Network error — check your connection.';
-    case 'permission-denied': return 'You do not have permission to do that.';
-    default: return (e && e.message) ? e.message.replace('Firebase: ', '').replace(/\(auth\/.*\)\.?/, '').trim() : 'Something went wrong.';
-  }
+/* ══ MODALS ═══════════════════════════════════════════════════════ */
+function closeConfirm() {
+  document.getElementById('confirmModal').classList.remove('open');
+  pendingDeleteUid = pendingDeleteBikeId = null;
+}
+document.getElementById('confirmModal').addEventListener('click', e => { if (e.target === document.getElementById('confirmModal')) closeConfirm(); });
+document.getElementById('userModal').addEventListener('click', e => { if (e.target === document.getElementById('userModal')) closeUserModal(); });
+
+/* ══ TOAST ════════════════════════════════════════════════════════ */
+let toastT;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+/* ══ HELPERS ══════════════════════════════════════════════════════ */
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+function fmtDate(val) {
+  if (!val) return '–';
+  try {
+    const d = val.toDate ? val.toDate() : new Date(val);
+    return d.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+  } catch { return '–'; }
+}
+function skeletonRows(cols, rows) {
+  return Array.from({length: rows}, () =>
+    `<tr>${Array.from({length: cols}, () => `<td><div class="skeleton"></div></td>`).join('')}</tr>`
+  ).join('');
 }
 </script>
 </body>
