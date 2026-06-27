@@ -6,766 +6,580 @@
   <title>Admin Login — Samriddhi & Brothers Auto</title>
 
   <!--
-  ╔══════════════════════════════════════════════════════════════════╗
-  ║  SECURITY NOTES                                                  ║
-  ║  ─────────────────────────────────────────────────────────────  ║
-  ║  • Real auth: Firebase Authentication (email + password).        ║
-  ║  • Roles/status/profile live in Firestore collection "users",    ║
-  ║    keyed by the Firebase Auth uid.                                ║
-  ║  • First run: if no "master" role exists yet in Firestore, this  ║
-  ║    page shows a one-time "Create Master Account" form instead    ║
-  ║    of the login form.                                            ║
-  ║  • Set Firestore + Storage Security Rules before going live —    ║
-  ║    see the rules block at the bottom of this file.               ║
-  ╚══════════════════════════════════════════════════════════════════╝
+  ╔══════════════════════════════════════════════════════════════════════╗
+  ║  FIREBASE SECURITY CHECKLIST — DO BEFORE GOING LIVE                 ║
+  ║  ──────────────────────────────────────────────────────────────────  ║
+  ║  1. Restrict your Firebase API key in Google Cloud Console:          ║
+  ║     → APIs & Services → Credentials → your key →                    ║
+  ║       Application restrictions: HTTP referrers                       ║
+  ║       Allowed: https://goyng.com.np/* https://*.goyng.com.np/*      ║
+  ║  2. Set Firestore Security Rules (Firebase Console → Firestore →     ║
+  ║     Rules):                                                          ║
+  ║       rules_version = '2';                                           ║
+  ║       service cloud.firestore {                                      ║
+  ║         match /databases/{db}/documents {                            ║
+  ║           match /{doc=**} {                                          ║
+  ║             allow read, write: if request.auth != null;              ║
+  ║           }                                                          ║
+  ║         }                                                            ║
+  ║       }                                                              ║
+  ║  3. In Firebase Console → Authentication → Settings →                ║
+  ║     Authorized domains: add your domain (goyng.com.np)              ║
+  ║  4. NEVER commit this file to a public GitHub repo with the          ║
+  ║     apiKey visible. Use GitHub Secrets / environment variables.      ║
+  ║  5. The Master Owner account MUST be created manually in Firebase    ║
+  ║     Console → Authentication → Add User (email/password).           ║
+  ║     Then create a Firestore document in collection "admins":         ║
+  ║       Document ID = the Firebase UID of that user                   ║
+  ║       Fields: name, email, role = "master", status = "active"       ║
+  ╚══════════════════════════════════════════════════════════════════════╝
+
+  SESSION SECURITY:
+  - Firebase Auth handles real session tokens (JWT).
+  - onAuthStateChanged fires on every page load — if not logged in,
+    admin_manage.html instantly redirects back here.
+  - Tab close / browser close: Firebase session persists by default,
+    but we use SESSION persistence so it clears on tab close.
+  - 30-minute idle timeout enforced client-side with sessionStorage.
+  - 5 failed attempts → 5-minute lockout (localStorage).
   -->
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    :root {
-      --ink:       #0B1D3A;
-      --ink-mid:   #4A5568;
-      --ink-soft:  #8896A8;
-      --ink-faint: #B8C4D0;
-      --gold:      #C8963E;
-      --gold-lt:   #D9A84E;
-      --gold-pale: #F5ECD9;
-      --surface:   #F4F2EE;
-      --white:     #FFFFFF;
-      --card-bdr:  #E2DDD6;
-      --red:       #C0392B;
-      --red-pale:  #FEF0EE;
-      --amber:     #B7770D;
-      --amber-pale:#FEF9ED;
-      --green:     #1A6B4A;
-      --green-pale:#EBF6F1;
-    }
-
     body {
-      font-family: 'Inter', sans-serif;
-      background: var(--surface);
+      font-family: 'DM Sans', sans-serif;
+      background: #f0f4f8;
       min-height: 100vh;
-      display: flex;
-      align-items: stretch;
-      overflow: hidden;
-    }
-
-    /* ── Left decorative panel ── */
-    .panel-left {
-      display: none;
-      width: 44%;
-      background: var(--ink);
-      position: relative;
-      overflow: hidden;
-      flex-shrink: 0;
-    }
-    @media (min-width: 900px) { .panel-left { display: flex; flex-direction: column; justify-content: space-between; padding: 52px 52px 48px; } }
-
-    .panel-left-stripe {
-      position: absolute;
-      top: 0; left: 0; bottom: 0;
-      width: 4px;
-      background: linear-gradient(180deg, var(--gold) 0%, #E8B85A 50%, var(--gold) 100%);
-    }
-
-    .panel-brand { }
-    .panel-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(200,150,62,0.15);
-      border: 1px solid rgba(200,150,62,0.3);
-      border-radius: 4px;
-      padding: 5px 12px;
-      font-size: 0.65rem;
-      font-weight: 600;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--gold);
-      margin-bottom: 24px;
-    }
-    .panel-title {
-      font-family: 'Playfair Display', serif;
-      font-size: 3rem;
-      font-weight: 700;
-      color: #fff;
-      line-height: 1.1;
-      margin-bottom: 16px;
-    }
-    .panel-title span { color: var(--gold); }
-    .panel-sub {
-      font-size: 0.9rem;
-      color: rgba(255,255,255,0.4);
-      line-height: 1.7;
-      font-weight: 300;
-    }
-
-    .panel-motif {
-      position: absolute;
-      right: -80px; top: 50%;
-      transform: translateY(-50%);
-      width: 300px; height: 300px;
-      border: 1px solid rgba(200,150,62,0.12);
-      border-radius: 50%;
-    }
-    .panel-motif::before {
-      content: '';
-      position: absolute;
-      inset: 28px;
-      border: 1px solid rgba(200,150,62,0.08);
-      border-radius: 50%;
-    }
-    .panel-motif::after {
-      content: '';
-      position: absolute;
-      inset: 56px;
-      border: 1px solid rgba(200,150,62,0.06);
-      border-radius: 50%;
-    }
-
-    .panel-footer-info {
-      font-size: 0.72rem;
-      color: rgba(255,255,255,0.2);
-      letter-spacing: 0.06em;
-      line-height: 1.8;
-    }
-
-    /* ── Right login panel ── */
-    .panel-right {
-      flex: 1;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 32px 24px;
-      background: var(--surface);
-      overflow-y: auto;
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
     }
 
-    .login-box { width: 100%; max-width: 400px; }
-
-    .mobile-logo { text-align: center; margin-bottom: 36px; }
-    .mobile-logo h1 {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.6rem;
-      font-weight: 700;
-      color: var(--ink);
+    /* ── Left blue panel (desktop) ── */
+    .bg-panel {
+      position: fixed;
+      left: 0; top: 0; bottom: 0;
+      width: 42%;
+      background: linear-gradient(160deg, #005EA6 0%, #003d70 100%);
+      z-index: 0;
     }
-    .mobile-logo p {
-      font-size: 0.72rem;
-      color: var(--ink-soft);
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      margin-top: 4px;
+    .bg-panel::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
     }
-    @media (min-width: 900px) { .mobile-logo { display: none; } }
-
-    .login-heading {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.75rem;
-      font-weight: 600;
-      color: var(--ink);
-      margin-bottom: 6px;
+    .bg-right {
+      position: fixed;
+      right: 0; top: 0; bottom: 0;
+      width: 58%;
+      background: #f0f4f8;
+      z-index: 0;
     }
-    .login-sub { font-size: 0.83rem; color: var(--ink-soft); margin-bottom: 32px; }
 
-    .field-group { margin-bottom: 20px; }
+    /* ── Layout ── */
+    .page-wrap {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 900px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 560px;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.14), 0 4px 16px rgba(0,0,0,0.08);
+    }
+
+    /* ── Left branding panel ── */
+    .brand-panel {
+      background: linear-gradient(160deg, #005EA6 0%, #003d70 100%);
+      padding: 48px 40px;
+      display: flex; flex-direction: column; justify-content: space-between;
+      position: relative; overflow: hidden;
+    }
+    .brand-panel::before {
+      content: '';
+      position: absolute; bottom: -60px; right: -60px;
+      width: 240px; height: 240px; border-radius: 50%;
+      background: rgba(255,255,255,0.06);
+    }
+    .brand-panel::after {
+      content: '';
+      position: absolute; top: -40px; left: -40px;
+      width: 180px; height: 180px; border-radius: 50%;
+      background: rgba(255,255,255,0.05);
+    }
+    .brand-logo {
+      position: relative; z-index: 1;
+    }
+    .brand-tagline {
+      position: relative; z-index: 1;
+    }
+    .stripe-anim {
+      height: 3px; width: 48px; border-radius: 2px; margin-bottom: 12px;
+      background: rgba(255,255,255,0.5);
+    }
+
+    /* ── Right login panel ── */
+    .login-panel {
+      background: #fff;
+      padding: 48px 44px;
+      display: flex; flex-direction: column; justify-content: center;
+    }
+
+    /* ── Form fields ── */
     .field-label {
       display: block;
-      font-size: 0.72rem;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--ink-mid);
-      margin-bottom: 7px;
+      font-size: 0.72rem; font-weight: 600;
+      letter-spacing: 0.09em; text-transform: uppercase;
+      color: #64748b; margin-bottom: 6px;
     }
-    .field-wrap { position: relative; }
+    .field-wrap { position: relative; margin-bottom: 18px; }
     .field-input {
       width: 100%;
-      background: var(--white);
-      border: 1.5px solid var(--card-bdr);
-      border-radius: 8px;
-      color: var(--ink);
-      font-family: 'Inter', sans-serif;
+      background: #f8fafc;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      color: #1e293b;
+      font-family: 'DM Sans', sans-serif;
       font-size: 0.9rem;
       padding: 12px 16px;
-      transition: border-color 0.2s, box-shadow 0.2s;
+      transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
     }
     .field-input:focus {
       outline: none;
-      border-color: var(--gold);
-      box-shadow: 0 0 0 3px rgba(200,150,62,0.12);
+      border-color: #005EA6;
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(0,94,166,0.1);
     }
-    .field-input::placeholder { color: var(--ink-faint); }
+    .field-input::placeholder { color: #94a3b8; }
     .field-input.has-icon { padding-right: 46px; }
-    .field-input.is-error { border-color: var(--red); }
-    .field-help { font-size: 0.74rem; color: var(--ink-faint); margin-top: 6px; }
+    .field-input.error-state {
+      border-color: #ef4444;
+      box-shadow: 0 0 0 3px rgba(239,68,68,0.1);
+    }
 
     .eye-btn {
       position: absolute; right: 13px; top: 50%; transform: translateY(-50%);
-      color: var(--ink-faint); cursor: pointer; padding: 4px;
-      background: none; border: none;
-      transition: color 0.15s;
+      color: #94a3b8; cursor: pointer; padding: 4px;
+      transition: color 0.15s; background: none; border: none;
     }
-    .eye-btn:hover { color: var(--ink-mid); }
+    .eye-btn:hover { color: #005EA6; }
 
-    .msg-box {
-      display: none; border-radius: 8px; font-size: 0.82rem; padding: 11px 14px;
-      margin-bottom: 20px; align-items: flex-start; gap: 9px; line-height: 1.5;
+    /* ── Alert boxes ── */
+    .alert {
+      display: none; border-radius: 8px;
+      font-size: 0.82rem; padding: 10px 14px; margin-bottom: 16px;
+      align-items: center; gap: 8px;
     }
-    .msg-box.show { display: flex; }
-    .msg-box svg { flex-shrink: 0; margin-top: 1px; }
-    .msg-error { background: var(--red-pale); border: 1px solid rgba(192,57,43,0.2); color: var(--red); }
-    .msg-info  { background: var(--amber-pale); border: 1px solid rgba(183,119,13,0.2); color: var(--amber); }
-    .msg-success { background: var(--green-pale); border: 1px solid rgba(26,107,74,0.2); color: var(--green); }
+    .alert.show { display: flex; }
+    .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
+    .alert-info  { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+    .alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
 
-    #attemptsHint { font-size: 0.78rem; color: var(--red); margin-bottom: 16px; display: none; }
-    #attemptsHint.show { display: block; }
-
+    /* ── Button ── */
     .btn-login {
-      width: 100%; background: var(--ink); color: #fff; border: none; border-radius: 8px;
-      font-family: 'Inter', sans-serif; font-size: 0.875rem; font-weight: 600; letter-spacing: 0.03em;
-      padding: 13px; cursor: pointer; transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
-      margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; background: #005EA6; color: #fff;
+      border: none; border-radius: 10px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.9rem; font-weight: 600; letter-spacing: 0.03em;
+      padding: 13px; cursor: pointer;
+      transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+      margin-top: 4px;
     }
-    .btn-login:hover { background: #162E54; box-shadow: 0 4px 20px rgba(11,29,58,0.2); }
-    .btn-login:active { transform: scale(0.985); }
-    .btn-login:disabled { background: var(--ink-faint); cursor: not-allowed; box-shadow: none; }
-
-    .btn-login-wrap { position: relative; margin-top: 4px; }
-    .btn-login-wrap::after {
-      content: ''; display: block; height: 2px;
-      background: linear-gradient(90deg, var(--gold), var(--gold-lt), var(--gold));
-      border-radius: 0 0 8px 8px; opacity: 0.8;
+    .btn-login:hover { background: #0070c7; box-shadow: 0 4px 18px rgba(0,94,166,0.3); }
+    .btn-login:active { transform: scale(0.98); }
+    .btn-login:disabled {
+      background: #cbd5e1; color: #94a3b8;
+      cursor: not-allowed; box-shadow: none;
     }
 
-    .divider { border: none; border-top: 1px solid var(--card-bdr); margin: 28px 0 20px; }
-    .login-footer { font-size: 0.72rem; color: var(--ink-faint); text-align: center; line-height: 1.7; }
+    /* ── Attempts hint ── */
+    .attempts-hint {
+      font-size: 0.78rem; color: #ef4444;
+      margin-top: -10px; margin-bottom: 14px;
+      display: none;
+    }
+    .attempts-hint.show { display: block; }
 
+    /* ── Lockout overlay ── */
     .lockout-overlay {
-      display: none; position: fixed; inset: 0; background: rgba(244,242,238,0.96);
-      backdrop-filter: blur(8px); align-items: center; justify-content: center;
-      flex-direction: column; gap: 10px; text-align: center; padding: 32px; z-index: 100;
+      display: none;
+      position: absolute; inset: 0; z-index: 20;
+      background: rgba(255,255,255,0.97);
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 8px; text-align: center; padding: 32px;
     }
     .lockout-overlay.show { display: flex; }
-    .lockout-icon {
-      width: 60px; height: 60px; background: var(--red-pale); border: 1.5px solid rgba(192,57,43,0.2);
-      border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;
-    }
 
-    @keyframes shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-5px); } 40%,80% { transform: translateX(5px); } }
-    .shake { animation: shake 0.35s ease; }
+    /* ── Loading spinner ── */
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: inline-block; vertical-align: middle; margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%,60%  { transform: translateX(-5px); }
+      40%,80%  { transform: translateX(5px); }
+    }
+    .shake { animation: shake 0.38s ease; }
 
     .fade-in { animation: fadeUp 0.4s ease both; }
-    @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-
-    /* ── Password strength meter ── */
-    .pw-meter-track { height: 5px; border-radius: 4px; background: var(--card-bdr); overflow: hidden; margin-top: 9px; }
-    .pw-meter-fill { height: 100%; width: 0%; border-radius: 4px; transition: width 0.2s, background 0.2s; background: var(--red); }
-    .pw-meter-label { font-size: 0.74rem; font-weight: 600; margin-top: 6px; }
-    .pw-checklist { list-style: none; margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
-    .pw-checklist li { font-size: 0.72rem; color: var(--ink-faint); display: flex; align-items: center; gap: 5px; }
-    .pw-checklist li.ok { color: var(--green); }
-    .pw-checklist li::before { content: '○'; font-size: 0.65rem; }
-    .pw-checklist li.ok::before { content: '●'; }
-
-    /* ── Mode switch (setup vs returning) ── */
-    .setup-badge {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: var(--gold-pale); color: #8A5E1A; border: 1px solid rgba(200,150,62,0.3);
-      border-radius: 99px; padding: 4px 12px; font-size: 0.68rem; font-weight: 700;
-      letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 16px;
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: none; }
     }
 
-    .spinner-center { display: flex; align-items: center; justify-content: center; min-height: 200px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .spin { animation: spin 0.7s linear infinite; }
+    /* ── Responsive ── */
+    @media (max-width: 680px) {
+      .bg-panel, .bg-right { display: none; }
+      .page-wrap { grid-template-columns: 1fr; box-shadow: none; border-radius: 16px; max-width: 420px; }
+      .brand-panel { padding: 28px 28px 24px; min-height: unset; }
+      .brand-panel::before, .brand-panel::after { display: none; }
+      .login-panel { padding: 28px; }
+    }
   </style>
 </head>
 <body>
 
-<!-- Left decorative panel -->
-<div class="panel-left">
-  <div class="panel-left-stripe"></div>
-  <div class="panel-motif"></div>
+<div class="bg-panel"></div>
+<div class="bg-right"></div>
 
-  <div class="panel-brand">
-    <div class="panel-badge">
-      <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/>
-      </svg>
-      Secure Portal
+<div class="page-wrap fade-in">
+
+  <!-- ── Left: Branding ── -->
+  <div class="brand-panel">
+    <div class="brand-logo">
+      <div class="stripe-anim"></div>
+      <p class="font-display text-white text-4xl tracking-widest" style="font-family:'Bebas Neue',sans-serif; line-height:1;">SAMRIDDHI<br/>&amp; BROTHERS</p>
+      <p class="text-sm mt-2" style="color:rgba(255,255,255,0.55); letter-spacing:0.12em;">AUTHORISED BAJAJ DEALER</p>
+      <p class="text-xs mt-1" style="color:rgba(255,255,255,0.35); letter-spacing:0.08em;">PHIDIM-1, PANCHTHAR · NEPAL</p>
     </div>
-    <h1 class="panel-title">Samriddhi<br />&amp; <span>Brothers</span></h1>
-    <p class="panel-sub">Authorized Bajaj dealership management portal.<br />Phidim, Panchthar · Go! YNG Dealership</p>
+    <div class="brand-tagline">
+      <p class="text-2xl font-light text-white" style="line-height:1.4;">Go!&nbsp;<span style="font-weight:700;">YNG</span><br/>Dealership</p>
+      <p class="text-xs mt-3" style="color:rgba(255,255,255,0.3); line-height:1.6;">
+        Admin Portal v2.0<br/>
+        Secured by Firebase Auth
+      </p>
+    </div>
   </div>
 
-  <div>
-    <p class="panel-footer-info">
-      Samriddhi &amp; Brothers Auto · Phidim-1<br />
-      Panchthar, Koshi Province, Nepal<br />
-      Unauthorized access is prohibited and monitored.
+  <!-- ── Right: Login Form ── -->
+  <div class="login-panel" style="position:relative;">
+
+    <!-- Lockout overlay -->
+    <div class="lockout-overlay" id="lockoutOverlay">
+      <div style="font-size:2.8rem;">🔒</div>
+      <p class="font-semibold text-gray-800 text-lg mt-1">Account Locked</p>
+      <p class="text-sm text-gray-500 mt-1">Too many failed attempts.</p>
+      <p class="text-sm text-gray-500">Try again in <span id="lockCountdown" class="font-bold text-red-500">5:00</span></p>
+    </div>
+
+    <div class="mb-7">
+      <div class="flex items-center gap-3 mb-4">
+        <div style="width:42px;height:42px;border-radius:10px;background:rgba(0,94,166,0.1);display:flex;align-items:center;justify-content:center;border:1.5px solid rgba(0,94,166,0.2);">
+          <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#005EA6" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="font-semibold text-gray-900 text-xl leading-tight">Admin Sign In</h1>
+          <p class="text-xs text-gray-400 mt-0.5">Authorised personnel only</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info alert (session expired / logout message) -->
+    <div class="alert alert-info" id="infoBox">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M12 8v4l2 2"/></svg>
+      <span id="infoMsg"></span>
+    </div>
+
+    <!-- Error alert -->
+    <div class="alert alert-error" id="errorBox">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="12.5" r="0.5" fill="currentColor"/></svg>
+      <span id="errorMsg">Invalid credentials.</span>
+    </div>
+
+    <!-- Email -->
+    <div class="field-wrap">
+      <label class="field-label" for="emailInput">Email Address</label>
+      <input id="emailInput" type="email" class="field-input"
+        placeholder="you@goyng.com.np"
+        autocomplete="email" autocapitalize="none" spellcheck="false" />
+    </div>
+
+    <!-- Password -->
+    <div class="field-wrap">
+      <label class="field-label" for="passwordInput">Password</label>
+      <input id="passwordInput" type="password" class="field-input has-icon"
+        placeholder="Enter your password"
+        autocomplete="current-password" />
+      <button type="button" class="eye-btn" id="eyeBtn" aria-label="Show/hide password">
+        <svg id="eyeIcon" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Attempts hint -->
+    <p class="attempts-hint" id="attemptsHint">
+      ⚠ <span id="attemptsLeft">2</span> attempt(s) remaining before lockout.
+    </p>
+
+    <button id="loginBtn" class="btn-login">Sign In</button>
+
+    <p class="text-center text-xs mt-5" style="color:#94a3b8; line-height:1.6;">
+      Unauthorized access is strictly prohibited.<br/>
+      All activity is monitored and logged.
     </p>
   </div>
 </div>
 
-<!-- Right login panel -->
-<div class="panel-right">
+<!-- ════════════════════════════════════════════════════════════════
+     FIREBASE SDK  (compat version — works in plain HTML without bundler)
+═════════════════════════════════════════════════════════════════ -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
-  <!-- Lockout overlay -->
-  <div class="lockout-overlay" id="lockoutOverlay">
-    <div class="lockout-icon">
-      <svg width="26" height="26" fill="none" viewBox="0 0 24 24" stroke="#C0392B" stroke-width="1.8">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
-      </svg>
-    </div>
-    <p style="font-family:'Playfair Display',serif; font-size:1.25rem; font-weight:600; color:var(--ink);">Access Temporarily Locked</p>
-    <p style="font-size:0.83rem; color:var(--ink-soft); margin-top:4px;">Too many failed attempts. Try again in</p>
-    <p style="font-family:'Playfair Display',serif; font-size:2.5rem; font-weight:600; color:var(--red); letter-spacing:0.04em;" id="lockCountdown">5:00</p>
-    <p style="font-size:0.75rem; color:var(--ink-faint);">This page will unlock automatically.</p>
-  </div>
-
-  <div class="login-box fade-in" id="appRoot">
-    <div class="mobile-logo">
-      <h1>Samriddhi &amp; Brothers</h1>
-      <p>Admin Portal · Bajaj Dealership</p>
-    </div>
-
-    <!-- Loading state while we check Firebase -->
-    <div id="checkingBox" class="spinner-center">
-      <svg class="spin" width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="var(--gold)" stroke-width="2.2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>
-      </svg>
-    </div>
-
-    <!-- ════ FIRST-RUN: CREATE MASTER ACCOUNT ════ -->
-    <div id="setupBox" style="display:none;">
-      <div class="setup-badge">
-        <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-        First-Time Setup
-      </div>
-      <h2 class="login-heading">Create Master Account</h2>
-      <p class="login-sub">No Master account exists yet. Create the first one — it will have full control over staff, owners, and dealership data.</p>
-
-      <div class="msg-box msg-error" id="setupErrorBox"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="12.5" r="0.5" fill="currentColor"/></svg><span id="setupErrorMsg"></span></div>
-
-      <div class="field-group">
-        <label class="field-label" for="s-name">Full Name</label>
-        <input id="s-name" type="text" class="field-input" placeholder="e.g. Isaac Yonghang" />
-      </div>
-      <div class="field-group">
-        <label class="field-label" for="s-email">Email</label>
-        <input id="s-email" type="email" class="field-input" placeholder="e.g. admin@goyng.com.np" autocomplete="username" />
-      </div>
-      <div class="field-group">
-        <label class="field-label" for="s-username">Username</label>
-        <input id="s-username" type="text" class="field-input" placeholder="e.g. master" autocomplete="off" />
-        <p class="field-help">3–20 characters: letters, numbers, underscore only.</p>
-      </div>
-      <div class="field-group">
-        <label class="field-label" for="s-password">Password</label>
-        <div class="field-wrap">
-          <input id="s-password" type="password" class="field-input has-icon" placeholder="Create a strong password" autocomplete="new-password" />
-          <button type="button" class="eye-btn" data-eye-for="s-password" aria-label="Toggle password visibility">👁</button>
-        </div>
-        <div class="pw-meter-track"><div class="pw-meter-fill" id="s-pw-fill"></div></div>
-        <p class="pw-meter-label" id="s-pw-label"></p>
-        <ul class="pw-checklist" id="s-pw-checklist">
-          <li data-k="length">8+ characters</li>
-          <li data-k="upper">Uppercase letter</li>
-          <li data-k="lower">Lowercase letter</li>
-          <li data-k="number">Number</li>
-          <li data-k="special">Symbol</li>
-        </ul>
-      </div>
-      <div class="field-group">
-        <label class="field-label" for="s-password2">Confirm Password</label>
-        <input id="s-password2" type="password" class="field-input" placeholder="Re-enter password" autocomplete="new-password" />
-      </div>
-
-      <div class="btn-login-wrap">
-        <button id="setupBtn" class="btn-login">Create Master Account</button>
-      </div>
-      <hr class="divider" />
-      <p class="login-footer">This setup screen only appears once. After the Master account is created, everyone signs in below.</p>
-    </div>
-
-    <!-- ════ NORMAL LOGIN ════ -->
-    <div id="loginBox" style="display:none;">
-      <h2 class="login-heading">Sign In</h2>
-      <p class="login-sub">Enter your credentials to access the dashboard.</p>
-
-      <div class="msg-box msg-info" id="infoBox">
-        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M12 8v4l2 2"/></svg>
-        <span id="infoMsg">Session expired. Please sign in again.</span>
-      </div>
-
-      <div class="msg-box msg-error" id="errorBox">
-        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="12.5" r="0.5" fill="currentColor"/></svg>
-        <span id="errorMsg">Invalid credentials.</span>
-      </div>
-
-      <div class="field-group">
-        <label class="field-label" for="username">Username or Email</label>
-        <input id="username" type="text" class="field-input" placeholder="e.g. admin@goyng.com.np"
-          autocomplete="username" spellcheck="false" autocapitalize="none" />
-      </div>
-
-      <div class="field-group">
-        <label class="field-label" for="password">Password</label>
-        <div class="field-wrap">
-          <input id="password" type="password" class="field-input has-icon" placeholder="Enter your password" autocomplete="current-password" />
-          <button type="button" class="eye-btn" data-eye-for="password" aria-label="Toggle password visibility">👁</button>
-        </div>
-      </div>
-
-      <p id="attemptsHint">⚠ <span id="attemptsLeft">5</span> attempts remaining before lockout.</p>
-
-      <div class="btn-login-wrap">
-        <button id="loginBtn" class="btn-login">
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25"/></svg>
-          Sign In to Dashboard
-        </button>
-      </div>
-
-      <hr class="divider" />
-      <p class="login-footer">
-        Go! YNG Dealership · Phidim-1, Panchthar, Nepal<br />
-        Sessions expire after 30 minutes of inactivity.
-      </p>
-    </div>
-  </div>
-</div>
-
-<script type="module">
-import { auth, db } from './firebase-init.js';
-import {
-  signInWithEmailAndPassword, onAuthStateChanged, createUserWithEmailAndPassword,
-  updateProfile, signOut
-} from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js';
-import {
-  doc, getDoc, setDoc, collection, query, where, limit, getDocs, serverTimestamp
-} from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js';
-import { isStrongPassword, passwordChecks, passwordScore, strengthMeta } from './auth-utils.js';
-
-const AUTH_CONFIG = {
-  LOCKOUT_KEY:      '__sba_lockout',
-  ATTEMPTS_KEY:     '__sba_attempts',
-  MAX_ATTEMPTS:     5,
-  LOCKOUT_DURATION: 5 * 60 * 1000,
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   FIREBASE CONFIG
+   ⚠ SECURITY: After rotating your key (you already did this after
+   the GitGuardian alert), restrict the NEW key in Google Cloud Console
+   to only your domain. See comment block at top of this file.
+══════════════════════════════════════════════════════════════════ */
+const firebaseConfig = {
+  apiKey:            "REPLACE_WITH_YOUR_NEW_ROTATED_API_KEY",
+  authDomain:        "project-jun-2f357.firebaseapp.com",
+  projectId:         "project-jun-2f357",
+  storageBucket:     "project-jun-2f357.firebasestorage.app",
+  messagingSenderId: "276638637528",
+  appId:             "1:276638637528:web:62d034cfc13f8d6d51e6ad",
+  measurementId:     "G-875B4DRWNK"
 };
-const LAST_ACTIVE_KEY = '__sba_last_active';
 
-const $ = id => document.getElementById(id);
+// Init Firebase
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
 
-/* ── Eye toggles (delegated) ── */
-document.querySelectorAll('.eye-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const input = $(btn.dataset.eyeFor);
-    input.type = input.type === 'password' ? 'text' : 'password';
-  });
-});
+// Use SESSION persistence — clears when browser/tab closes
+auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
 
-/* ── Lockout helpers ── */
-function getLockout() { try { return JSON.parse(localStorage.getItem(AUTH_CONFIG.LOCKOUT_KEY) || 'null'); } catch { return null; } }
-function setLockout() { localStorage.setItem(AUTH_CONFIG.LOCKOUT_KEY, JSON.stringify({ until: Date.now() + AUTH_CONFIG.LOCKOUT_DURATION })); }
-function clearLockout() { localStorage.removeItem(AUTH_CONFIG.LOCKOUT_KEY); localStorage.removeItem(AUTH_CONFIG.ATTEMPTS_KEY); }
-function isLockedOut() { const l = getLockout(); if (!l) return false; if (Date.now() < l.until) return true; clearLockout(); return false; }
-function getAttempts() { return parseInt(localStorage.getItem(AUTH_CONFIG.ATTEMPTS_KEY) || '0', 10); }
-function incAttempts() { localStorage.setItem(AUTH_CONFIG.ATTEMPTS_KEY, getAttempts() + 1); }
+/* ══ CONSTANTS ════════════════════════════════════════════════════ */
+const LOCKOUT_KEY  = '__sba_lockout';
+const ATTEMPTS_KEY = '__sba_attempts';
+const IDLE_KEY     = '__sba_idle';
+const MAX_ATTEMPTS    = 5;
+const LOCKOUT_MINS    = 5;
+const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 min
 
-let lockTimer;
-function showLockout() {
-  $('lockoutOverlay').classList.add('show');
-  const l = getLockout(); if (!l) return;
-  function tick() {
-    const rem = Math.max(0, l.until - Date.now());
-    const m = Math.floor(rem / 60000), s = Math.floor((rem % 60000) / 1000);
-    $('lockCountdown').textContent = `${m}:${String(s).padStart(2,'0')}`;
-    if (rem <= 0) { clearLockout(); $('lockoutOverlay').classList.remove('show'); clearInterval(lockTimer); }
+/* ══ REDIRECT REASON ═════════════════════════════════════════════ */
+(function() {
+  const p = new URLSearchParams(window.location.search);
+  const r = p.get('reason');
+  const map = {
+    expired:      'Your session expired due to inactivity. Please sign in again.',
+    logout:       'You have been signed out successfully.',
+    unauthorized: 'Access denied. Please sign in to continue.',
+  };
+  if (map[r]) {
+    document.getElementById('infoMsg').textContent = map[r];
+    document.getElementById('infoBox').classList.add('show');
+    history.replaceState(null,'','admin.html');
   }
-  tick();
-  lockTimer = setInterval(tick, 1000);
-}
-if (isLockedOut()) showLockout();
-
-/* ── Redirect-reason banner ── */
-(function checkRedirectReason() {
-  const params = new URLSearchParams(window.location.search);
-  const reason = params.get('reason');
-  const msgEl = $('infoMsg'), box = $('infoBox');
-  if (reason === 'expired')       { msgEl.textContent = 'Your session expired due to inactivity. Please sign in again.'; box.classList.add('show'); }
-  else if (reason === 'logout')   { msgEl.textContent = 'You have been signed out successfully.'; box.classList.add('show'); }
-  else if (reason === 'unauthorized') { msgEl.textContent = 'Access denied. Please sign in to continue.'; box.classList.add('show'); }
-  else if (reason === 'inactive') { msgEl.textContent = 'Your account has been deactivated. Contact the Master Owner.'; box.classList.add('show'); }
-  if (reason) history.replaceState(null, '', 'admin.html');
 })();
 
-/* ── UI helpers ── */
+/* ══ IF ALREADY LOGGED IN → redirect ════════════════════════════ */
+auth.onAuthStateChanged(user => {
+  if (!user) return;
+  // Check idle timeout
+  const lastActive = parseInt(sessionStorage.getItem(IDLE_KEY) || '0', 10);
+  if (lastActive && Date.now() - lastActive >= SESSION_TIMEOUT) {
+    auth.signOut();
+    sessionStorage.removeItem(IDLE_KEY);
+    return;
+  }
+  window.location.replace('admin_manage.html');
+});
+
+/* ══ LOCKOUT ══════════════════════════════════════════════════════ */
+function getLockout() {
+  try { return JSON.parse(localStorage.getItem(LOCKOUT_KEY)); } catch { return null; }
+}
+function setLockout() {
+  localStorage.setItem(LOCKOUT_KEY, JSON.stringify({ until: Date.now() + LOCKOUT_MINS * 60000 }));
+}
+function clearLockout() {
+  localStorage.removeItem(LOCKOUT_KEY);
+  localStorage.removeItem(ATTEMPTS_KEY);
+}
+function isLockedOut() {
+  const l = getLockout();
+  if (!l) return false;
+  if (Date.now() < l.until) return true;
+  clearLockout(); return false;
+}
+function getAttempts() { return parseInt(localStorage.getItem(ATTEMPTS_KEY) || '0', 10); }
+function incAttempts()  { localStorage.setItem(ATTEMPTS_KEY, getAttempts() + 1); }
+
+let lockInterval;
+function showLockoutUI() {
+  document.getElementById('lockoutOverlay').classList.add('show');
+  clearInterval(lockInterval);
+  lockInterval = setInterval(() => {
+    const l = getLockout();
+    if (!l || Date.now() >= l.until) {
+      clearLockout();
+      document.getElementById('lockoutOverlay').classList.remove('show');
+      clearInterval(lockInterval);
+      return;
+    }
+    const rem = l.until - Date.now();
+    const m = Math.floor(rem / 60000);
+    const s = Math.floor((rem % 60000) / 1000);
+    document.getElementById('lockCountdown').textContent = `${m}:${String(s).padStart(2,'0')}`;
+  }, 500);
+}
+if (isLockedOut()) showLockoutUI();
+
+/* ══ EYE TOGGLE ══════════════════════════════════════════════════ */
+document.getElementById('eyeBtn').addEventListener('click', () => {
+  const pw = document.getElementById('passwordInput');
+  const show = pw.type === 'password';
+  pw.type = show ? 'text' : 'password';
+  document.getElementById('eyeIcon').innerHTML = show
+    ? `<path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/>`
+    : `<path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>`;
+});
+
+/* ══ UI HELPERS ══════════════════════════════════════════════════ */
 function showError(msg) {
-  $('errorBox').classList.add('show');
-  $('errorMsg').textContent = msg;
-  $('loginBox').classList.add('shake');
-  setTimeout(() => $('loginBox').classList.remove('shake'), 400);
+  document.getElementById('errorBox').classList.add('show');
+  document.getElementById('errorMsg').textContent = msg;
+  document.getElementById('emailInput').classList.add('error-state');
+  document.getElementById('passwordInput').classList.add('error-state');
+  const btn = document.getElementById('loginBtn');
+  btn.classList.add('shake');
+  setTimeout(() => btn.classList.remove('shake'), 400);
 }
-function hideError() { $('errorBox').classList.remove('show'); }
-function setBtnLoading(btn, loading, defaultHtml) {
-  btn.disabled = loading;
-  btn.innerHTML = loading
-    ? `<svg class="spin" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg> Working…`
-    : defaultHtml;
+function hideError() {
+  document.getElementById('errorBox').classList.remove('show');
+  document.getElementById('emailInput').classList.remove('error-state');
+  document.getElementById('passwordInput').classList.remove('error-state');
 }
 
-/* ── Password meter wiring (setup form) ── */
-function wirePasswordMeter(inputId, fillId, labelId, checklistId) {
-  const input = $(inputId);
-  input.addEventListener('input', () => {
-    const pw = input.value;
-    const score = passwordScore(pw);
-    const meta = strengthMeta(score);
-    $(fillId).style.width = pw ? meta.pct + '%' : '0%';
-    $(fillId).style.background = meta.color;
-    $(labelId).textContent = pw ? meta.label + ' password' : '';
-    $(labelId).style.color = meta.color;
-    const checks = passwordChecks(pw);
-    document.querySelectorAll(`#${checklistId} li`).forEach(li => {
-      li.classList.toggle('ok', !!checks[li.dataset.k]);
-    });
+/* ══ LOGIN ════════════════════════════════════════════════════════ */
+document.getElementById('loginBtn').addEventListener('click', doLogin);
+['emailInput','passwordInput'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
   });
-}
-wirePasswordMeter('s-password', 's-pw-fill', 's-pw-label', 's-pw-checklist');
-
-/* ════════════════════════════════════════════════════════════════
-   MODE DETECTION: does a Master account already exist in Firestore?
-   ════════════════════════════════════════════════════════════════ */
-async function decideMode() {
-  // Already signed in with an active session? Skip straight to dashboard.
-  return new Promise(resolve => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      unsub();
-      if (user) {
-        try {
-          const snap = await getDoc(doc(db, 'users', user.uid));
-          if (snap.exists() && snap.data().status !== 'inactive') {
-            window.location.replace('admin_manage.html');
-            return;
-          }
-        } catch (e) { /* fall through to login */ }
-      }
-      resolve();
-    });
-  });
-}
-
-async function masterExists() {
-  const q = query(collection(db, 'users'), where('role', '==', 'master'), limit(1));
-  const snap = await getDocs(q);
-  return !snap.empty;
-}
-
-(async function init() {
-  await decideMode();
-  $('checkingBox').style.display = 'none';
-  const hasMaster = await masterExists().catch(() => true); // fail safe → show login, not setup
-  if (hasMaster) {
-    $('loginBox').style.display = '';
-  } else {
-    $('setupBox').style.display = '';
-  }
-})();
-
-/* ════════════════════════════════════════════════════════════════
-   FIRST-RUN MASTER SETUP
-   ════════════════════════════════════════════════════════════════ */
-$('setupBtn').addEventListener('click', async () => {
-  const errBox = $('setupErrorBox'), errMsg = $('setupErrorMsg');
-  errBox.classList.remove('show');
-  function showSetupErr(msg) { errMsg.textContent = msg; errBox.classList.add('show'); }
-
-  const name      = $('s-name').value.trim();
-  const email     = $('s-email').value.trim().toLowerCase();
-  const username  = $('s-username').value.trim().toLowerCase();
-  const password  = $('s-password').value;
-  const password2  = $('s-password2').value;
-
-  if (!name || !email || !username || !password || !password2) return showSetupErr('All fields are required.');
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showSetupErr('Enter a valid email address.');
-  if (!/^[a-z0-9_]{3,20}$/.test(username)) return showSetupErr('Username: 3–20 characters, letters/numbers/underscore only.');
-  if (!isStrongPassword(password)) return showSetupErr('Password is not strong enough — check the checklist above.');
-  if (password !== password2) return showSetupErr('Passwords do not match.');
-
-  const btn = $('setupBtn');
-  setBtnLoading(btn, true, 'Create Master Account');
-  try {
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(cred.user, { displayName: name });
-    await setDoc(doc(db, 'users', cred.user.uid), {
-      uid: cred.user.uid, name, email, username, role: 'master', status: 'active',
-      photoURL: '', createdAt: serverTimestamp(),
-    });
-    localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()));
-    window.location.replace('admin_manage.html');
-  } catch (e) {
-    setBtnLoading(btn, false, 'Create Master Account');
-    showSetupErr(friendlyAuthError(e));
-  }
 });
-
-/* ════════════════════════════════════════════════════════════════
-   NORMAL LOGIN
-   ════════════════════════════════════════════════════════════════ */
-$('loginBtn').addEventListener('click', doLogin);
-['username', 'password'].forEach(id => {
-  $(id).addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-});
-
-async function resolveEmail(input) {
-  if (input.includes('@')) return input;
-  const q = query(collection(db, 'users'), where('username', '==', input.toLowerCase()), limit(1));
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  return snap.docs[0].data().email;
-}
 
 async function doLogin() {
   hideError();
-  if (isLockedOut()) { showLockout(); return; }
+  if (isLockedOut()) { showLockoutUI(); return; }
 
-  const input = $('username').value.trim();
-  const pass  = $('password').value;
-  const btn   = $('loginBtn');
-  const defaultHtml = btn.innerHTML;
+  const email = document.getElementById('emailInput').value.trim();
+  const pass  = document.getElementById('passwordInput').value;
+  const btn   = document.getElementById('loginBtn');
 
-  if (!input || !pass) { showError('Please fill in both fields.'); return; }
+  if (!email || !pass) {
+    showError('Please enter your email and password.');
+    return;
+  }
 
-  setBtnLoading(btn, true, defaultHtml);
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Signing in…';
+
   try {
-    const email = await resolveEmail(input);
-    if (!email) throw { code: 'auth/user-not-found' };
+    // Firebase Auth sign-in
+    const cred = await auth.signInWithEmailAndPassword(email, pass);
+    const uid  = cred.user.uid;
 
-    const cred = await signInWithEmailAndPassword(auth, email, pass);
-    const profileSnap = await getDoc(doc(db, 'users', cred.user.uid));
-    const profile = profileSnap.exists() ? profileSnap.data() : null;
+    // Fetch role from Firestore "admins" collection
+    const snap = await db.collection('admins').doc(uid).get();
 
-    if (!profile) {
-      await signOut(auth);
-      throw { code: 'profile/missing' };
-    }
-    if (profile.status === 'inactive') {
-      await signOut(auth);
-      showError('Your account has been deactivated. Contact the Master Owner.');
-      setBtnLoading(btn, false, defaultHtml);
+    if (!snap.exists) {
+      await auth.signOut();
+      showError('Your account is not registered as an admin. Contact the Master Owner.');
+      resetBtn();
       return;
     }
 
+    const adminData = snap.data();
+
+    if (adminData.status === 'inactive') {
+      await auth.signOut();
+      showError('Your account has been deactivated. Contact the Master Owner.');
+      resetBtn();
+      return;
+    }
+
+    // ✅ Success — store idle timestamp and role in sessionStorage
     clearLockout();
-    localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()));
+    sessionStorage.setItem(IDLE_KEY, Date.now().toString());
+    sessionStorage.setItem('__sba_role', adminData.role);
+    sessionStorage.setItem('__sba_name', adminData.name || cred.user.displayName || 'Admin');
+
     window.location.replace('admin_manage.html');
-  } catch (e) {
+
+  } catch(err) {
     incAttempts();
     const attempts = getAttempts();
-    const remaining = AUTH_CONFIG.MAX_ATTEMPTS - attempts;
+    const remaining = MAX_ATTEMPTS - attempts;
 
-    if (attempts >= AUTH_CONFIG.MAX_ATTEMPTS) {
+    if (attempts >= MAX_ATTEMPTS) {
       setLockout();
-      showLockout();
-      setBtnLoading(btn, false, defaultHtml);
+      showLockoutUI();
+      resetBtn();
       return;
     }
-    if (remaining <= 2) {
-      $('attemptsHint').classList.add('show');
-      $('attemptsLeft').textContent = remaining;
+
+    if (remaining <= 3) {
+      document.getElementById('attemptsHint').classList.add('show');
+      document.getElementById('attemptsLeft').textContent = remaining;
     }
-    showError(friendlyAuthError(e) + (remaining <= 3 ? ` ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.` : ''));
-    setBtnLoading(btn, false, defaultHtml);
-    $('password').value = '';
-    $('password').focus();
+
+    // Map Firebase error codes to friendly messages
+    let msg = 'Incorrect email or password.';
+    if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+      msg = `Incorrect email or password.${remaining <= 3 ? ` ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.` : ''}`;
+    } else if (err.code === 'auth/too-many-requests') {
+      msg = 'Too many attempts. Firebase has temporarily blocked this account.';
+    } else if (err.code === 'auth/network-request-failed') {
+      msg = 'Network error. Check your internet connection.';
+    } else if (err.code === 'auth/invalid-email') {
+      msg = 'Please enter a valid email address.';
+    }
+
+    showError(msg);
+    document.getElementById('passwordInput').value = '';
+    document.getElementById('passwordInput').focus();
+    resetBtn();
   }
 }
 
-function friendlyAuthError(e) {
-  const code = e && e.code;
-  switch (code) {
-    case 'auth/user-not-found':
-    case 'auth/wrong-password':
-    case 'auth/invalid-credential':
-    case 'profile/missing':
-      return 'Incorrect username or password.';
-    case 'auth/too-many-requests':
-      return 'Too many attempts. Please wait a moment and try again.';
-    case 'auth/email-already-in-use':
-      return 'An account with this email already exists.';
-    case 'auth/weak-password':
-      return 'Password is too weak.';
-    case 'auth/network-request-failed':
-      return 'Network error — check your connection.';
-    default:
-      return 'Something went wrong. Please try again.';
-  }
+function resetBtn() {
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = false;
+  btn.innerHTML = 'Sign In';
 }
 </script>
-
-<!--
-══════════════════════════════════════════════════════════════════════
-RECOMMENDED FIRESTORE SECURITY RULES (set these in Firebase Console →
-Firestore Database → Rules) — paste and adjust collection names if you
-change them:
-
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-
-    function isSignedIn() { return request.auth != null; }
-    function myDoc() { return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
-    function myRole() { return myDoc().data.role; }
-    function isActive() { return myDoc().data.status == 'active'; }
-    function isMaster() { return isSignedIn() && isActive() && myRole() == 'master'; }
-    function isOwnerOrMaster() { return isSignedIn() && isActive() && (myRole() == 'master' || myRole() == 'owner'); }
-
-    match /users/{uid} {
-      allow read: if isSignedIn();
-      allow create: if isMaster();
-      allow update: if isMaster() || (isSignedIn() && request.auth.uid == uid
-                       && !('role' in request.resource.data.diff(resource.data).affectedKeys()));
-      allow delete: if isMaster();
-    }
-
-    match /bikes/{bikeId} {
-      allow read: if isSignedIn();
-      allow write: if isOwnerOrMaster();
-    }
-
-    match /inventory/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isOwnerOrMaster();
-    }
-  }
-}
-
-RECOMMENDED STORAGE RULES (Firebase Console → Storage → Rules):
-
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /avatars/{uid}/{fileName} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == uid
-                     && request.resource.size < 5 * 1024 * 1024;
-    }
-    match /bikes/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-                     && request.resource.size < 8 * 1024 * 1024;
-    }
-  }
-}
-
-Also enable: Firebase Console → Authentication → Sign-in method → Email/Password → Enable.
-══════════════════════════════════════════════════════════════════════
--->
 </body>
 </html>
